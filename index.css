@@ -1,0 +1,986 @@
+/* ==========================================================================
+   血染钟楼说书人助手 移动端专用哥特级暗黑视觉系统 (Vanilla CSS)
+   ========================================================================== */
+
+/* 引入 Google 艺术字体：Cinzel(中世纪英文)、Inter(高保真易读数值) */
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Inter:wght@300;400;500;600;700&display=swap');
+
+/* HSL 调和色板与设计系统令牌 */
+:root {
+  --bg-dark: 345, 20%, 4%;
+  --bg-deep: 345, 18%, 7%;
+  --card-bg: 345, 12%, 10%;
+  --gold: 45, 65%, 52%;
+  --gold-glow: 45, 80%, 40%;
+  --blood-red: 358, 80%, 30%;
+  --blood-glow: 358, 85%, 20%;
+  --poison-green: 145, 63%, 49%;
+  --drunk-purple: 275, 55%, 60%;
+  --safe-blue: 204, 76%, 53%;
+  --text-primary: 36, 33%, 91%; /* 优雅的羊皮纸浅黄白 */
+  --text-muted: 345, 10%, 65%;
+  --border-gold: hsla(45, 65%, 52%, 0.25);
+  --border-glass: rgba(255, 255, 255, 0.05);
+  
+  --transition-smooth: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  --font-title: 'Cinzel', Georgia, serif;
+  --font-ui: 'Inter', system-ui, -apple-system, sans-serif;
+  
+  /* 适配苹果刘海屏与安全区域 */
+  --safe-top: env(safe-area-inset-top, 20px);
+  --safe-bottom: env(safe-area-inset-bottom, 20px);
+}
+
+/* 全局重置与 PWA 全屏配置 */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent; /* 消除苹果手机点击高亮闪烁 */
+}
+
+body {
+  font-family: var(--font-ui);
+  background: radial-gradient(circle at center, hsl(var(--bg-deep)) 0%, hsl(var(--bg-dark)) 100%);
+  color: hsl(var(--text-primary));
+  min-height: 100vh;
+  min-height: -webkit-fill-available; /* 修复 iOS Safari 100vh 遮挡问题 */
+  overflow-x: hidden;
+  line-height: 1.5;
+  user-select: none; /* 禁用系统长按选择，保证魔典交互流畅 */
+}
+
+html {
+  height: -webkit-fill-available;
+}
+
+/* 沉浸式标题栏 */
+header {
+  padding: calc(var(--safe-top) + 10px) 20px 10px;
+  background: linear-gradient(to bottom, rgba(13, 6, 7, 0.8) 0%, transparent 100%);
+  text-align: center;
+  border-bottom: 1px solid rgba(212, 175, 55, 0.05);
+  position: relative;
+  z-index: 100;
+}
+
+header h1 {
+  font-family: var(--font-title);
+  font-size: 1.5rem;
+  letter-spacing: 2px;
+  color: hsl(var(--gold));
+  text-shadow: 0 0 10px hsla(45, 80%, 40%, 0.5);
+  font-weight: 700;
+}
+
+header p {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-top: 2px;
+}
+
+/* 通用容器与页面视图 */
+.view-container {
+  max-width: 500px; /* 锁死移动端尺寸 */
+  margin: 0 auto;
+  padding: 15px 20px calc(var(--safe-bottom) + 80px);
+  position: relative;
+}
+
+.view {
+  display: none;
+  animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.view.active {
+  display: block;
+}
+
+/* ==========================================================================
+   游戏配置视图 (Setup View) 与 角色池勾选视图 (Pool View)
+   ========================================================================== */
+
+.glass-card {
+  background: rgba(25, 10, 12, 0.6);
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+  border: 1px solid var(--border-gold);
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.6);
+}
+
+.section-title {
+  font-family: var(--font-title);
+  font-size: 1.1rem;
+  color: hsl(var(--gold));
+  margin-bottom: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-left: 3px solid hsl(var(--blood-red));
+  padding-left: 10px;
+}
+
+.form-group {
+  margin-bottom: 18px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 0.85rem;
+  color: hsl(var(--text-muted));
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+
+/* 经典黄金发光下拉菜单与输入框 */
+.form-control {
+  width: 100%;
+  background: rgba(13, 6, 7, 0.8);
+  border: 1px solid rgba(212, 175, 55, 0.2);
+  color: hsl(var(--text-primary));
+  font-family: var(--font-ui);
+  padding: 12px 16px;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  outline: none;
+  transition: var(--transition-smooth);
+}
+
+.form-control:focus {
+  border-color: hsl(var(--gold));
+  box-shadow: 0 0 10px hsla(45, 80%, 40%, 0.3);
+}
+
+/* 计数展示微章 */
+.distribution-badge-container {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-top: 10px;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.dist-badge {
+  text-align: center;
+  font-size: 0.75rem;
+  padding: 6px 4px;
+  border-radius: 6px;
+  font-weight: 600;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.dist-badge.townsfolk { background: rgba(52, 152, 219, 0.15); border: 1px solid rgba(52, 152, 219, 0.3); color: #5dade2; }
+.dist-badge.outsider { background: rgba(243, 156, 18, 0.15); border: 1px solid rgba(243, 156, 18, 0.3); color: #f5b041; }
+.dist-badge.minion { background: rgba(231, 76, 60, 0.15); border: 1px solid rgba(231, 76, 60, 0.3); color: #ec7063; }
+.dist-badge.demon { background: rgba(139, 15, 15, 0.25); border: 1px solid rgba(139, 15, 15, 0.5); color: #ff6b6b; }
+
+.dist-badge span {
+  font-size: 1.1rem;
+  margin-top: 3px;
+  font-weight: 700;
+}
+
+/* 玩家名字配置输入列表 */
+.player-list-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 250px;
+  overflow-y: auto;
+  padding-right: 5px;
+  margin-top: 10px;
+}
+
+.player-input-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.player-input-num {
+  font-family: var(--font-title);
+  width: 25px;
+  font-weight: bold;
+  color: hsl(var(--gold));
+  text-align: center;
+}
+
+/* 自定义开关按钮 */
+.switch-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+}
+
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 26px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.1);
+  transition: .4s;
+  border-radius: 34px;
+  border: 1px solid rgba(212, 175, 55, 0.2);
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: hsl(var(--text-muted));
+  transition: .4s;
+  border-radius: 50%;
+}
+
+input:checked + .slider {
+  background-color: rgba(139, 15, 15, 0.3);
+  border-color: hsl(var(--gold));
+}
+
+input:checked + .slider:before {
+  transform: translateX(24px);
+  background-color: hsl(var(--gold));
+  box-shadow: 0 0 8px hsl(var(--gold));
+}
+
+/* 角色池勾选面板 */
+.pool-category {
+  margin-bottom: 25px;
+}
+
+.pool-category-title {
+  font-family: var(--font-title);
+  font-size: 0.95rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 5px;
+  margin-bottom: 12px;
+  letter-spacing: 1px;
+}
+
+.pool-category-title.townsfolk { color: #5dade2; }
+.pool-category-title.outsider { color: #f5b041; }
+.pool-category-title.minion { color: #ec7063; }
+.pool-category-title.demon { color: #ff6b6b; }
+
+.role-checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.role-checkbox-item {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+
+.role-checkbox-item.checked {
+  border-color: hsl(var(--gold));
+  background: rgba(212, 175, 55, 0.05);
+}
+
+.role-checkbox-item input {
+  display: none;
+}
+
+.role-checkbox-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: hsl(var(--bg-deep));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  border: 1px solid rgba(212, 175, 55, 0.15);
+  font-weight: bold;
+}
+
+.role-checkbox-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.role-checkbox-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.role-checkbox-script {
+  font-size: 0.65rem;
+  color: hsl(var(--text-muted));
+}
+
+/* ==========================================================================
+   身份分发视图 (Distribution View)
+   ========================================================================== */
+
+.dist-mode-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.dist-tab {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 10px 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: hsl(var(--text-muted));
+  cursor: pointer;
+  text-align: center;
+  transition: var(--transition-smooth);
+}
+
+.dist-tab.active {
+  background: rgba(139, 15, 15, 0.2);
+  border-color: hsl(var(--gold));
+  color: hsl(var(--text-primary));
+}
+
+/* 翻牌模式容器 */
+.pass-mode-container {
+  min-height: 280px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.card-flipper {
+  perspective: 1000px;
+  width: 200px;
+  height: 280px;
+  margin: 15px auto;
+  cursor: pointer;
+}
+
+.card-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  text-align: center;
+  transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  transform-style: preserve-3d;
+}
+
+.card-flipper.flipped .card-inner {
+  transform: rotateY(180deg);
+}
+
+.card-front, .card-back {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  border-radius: 14px;
+  border: 2px solid hsl(var(--gold));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+}
+
+.card-front {
+  background: linear-gradient(135deg, #1b090a 0%, #0d0405 100%);
+  background-image: radial-gradient(circle at center, hsla(45, 65%, 52%, 0.1) 0%, transparent 80%);
+}
+
+.card-front .card-logo {
+  font-family: var(--font-title);
+  font-size: 3rem;
+  color: hsl(var(--gold));
+  text-shadow: 0 0 15px hsla(45, 80%, 40%, 0.4);
+}
+
+.card-front .tap-hint {
+  font-size: 0.75rem;
+  color: hsl(var(--text-muted));
+  margin-top: 15px;
+  letter-spacing: 1px;
+}
+
+.card-back {
+  background: linear-gradient(135deg, #1c0e10 0%, #0d0607 100%);
+  transform: rotateY(180deg);
+}
+
+.role-reveal-type {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  font-weight: 600;
+  margin-bottom: 5px;
+}
+
+.role-reveal-name {
+  font-family: var(--font-title);
+  font-size: 1.8rem;
+  color: hsl(var(--gold));
+  margin-bottom: 15px;
+  text-shadow: 0 0 10px hsla(45, 80%, 40%, 0.3);
+}
+
+.role-reveal-desc {
+  font-size: 0.85rem;
+  line-height: 1.4;
+  color: hsl(var(--text-primary));
+  background: rgba(0, 0, 0, 0.3);
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* 扫码分发模式 */
+.qr-mode-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.qr-selector-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin-bottom: 15px;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 12px;
+  border-radius: 10px;
+}
+
+.qr-box {
+  width: 200px;
+  height: 200px;
+  background: white;
+  border: 4px solid hsl(var(--gold));
+  border-radius: 12px;
+  padding: 10px;
+  margin: 15px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+}
+
+.qr-box img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* 手动分配列表 */
+.manual-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: rgba(0,0,0,0.25);
+  border-radius: 10px;
+  margin-bottom: 8px;
+  border: 1px solid rgba(255,255,255,0.03);
+}
+
+.manual-select {
+  background: rgba(13, 6, 7, 0.9);
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  color: hsl(var(--text-primary));
+  padding: 6px 12px;
+  border-radius: 6px;
+  outline: none;
+  font-size: 0.85rem;
+  max-width: 150px;
+}
+
+/* ==========================================================================
+   魔典主界面 (Grimoire Circle View)
+   ========================================================================== */
+
+/* 核心魔典大环形容器，必须是正方形且适配手机屏幕 */
+.grimoire-viewport {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  max-width: 420px;
+  margin: 10px auto 20px;
+  position: relative;
+  background-image: radial-gradient(circle, rgba(139, 15, 15, 0.15) 0%, transparent 60%);
+  border-radius: 50%;
+  border: 1px dashed rgba(212, 175, 55, 0.1);
+  box-shadow: inset 0 0 50px rgba(0,0,0,0.8);
+}
+
+.grimoire-center-clock {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.grimoire-center-clock .script-title {
+  font-family: var(--font-title);
+  font-size: 1.1rem;
+  color: hsl(var(--gold));
+  text-shadow: 0 0 8px rgba(212,175,55,0.4);
+}
+
+.grimoire-center-clock .day-count {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin-top: 4px;
+}
+
+/* 环形座位定位节点 */
+.player-seat-node {
+  position: absolute;
+  width: 72px;
+  height: 72px;
+  transform: translate(-50%, -50%);
+  z-index: 20;
+  transition: transform 0.4s ease, opacity 0.4s ease;
+}
+
+/* 座位内部盘片样式 */
+.seat-disk {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: radial-gradient(circle, #250f13 0%, #110507 100%);
+  border: 2px solid rgba(212, 175, 55, 0.4);
+  box-shadow: 0 5px 15px rgba(0,0,0,0.7);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+  transition: var(--transition-smooth);
+  overflow: hidden;
+}
+
+.player-seat-node.active .seat-disk {
+  border-color: hsl(var(--gold));
+  box-shadow: 0 0 15px hsla(45, 80%, 50%, 0.6);
+  transform: scale(1.05);
+}
+
+/* 玩家头像中文名首字缩写或拼音 */
+.seat-disk-avatar {
+  font-size: 0.95rem;
+  font-weight: bold;
+  font-family: var(--font-title);
+  color: hsl(var(--text-primary));
+  margin-bottom: 2px;
+  z-index: 2;
+}
+
+/* 村民/邪恶阵营发光环绕线 */
+.seat-disk.townsfolk { border-color: rgba(52, 152, 219, 0.4); }
+.seat-disk.outsider { border-color: rgba(243, 156, 18, 0.4); }
+.seat-disk.minion { border-color: rgba(231, 76, 60, 0.4); }
+.seat-disk.demon { border-color: rgba(139, 15, 15, 0.7); }
+
+.seat-player-name {
+  font-size: 0.65rem;
+  max-width: 90%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: hsl(var(--text-primary));
+  z-index: 2;
+}
+
+.seat-role-name {
+  font-size: 0.55rem;
+  color: hsl(var(--gold));
+  z-index: 2;
+  margin-top: 1px;
+}
+
+/* 状态修饰符：血红寿衣 */
+.seat-disk .shroud-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(139, 15, 15, 0.65);
+  z-index: 5;
+  opacity: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+}
+
+.player-seat-node.dead .seat-disk .shroud-overlay {
+  opacity: 1;
+}
+
+.shroud-overlay::before {
+  content: "†";
+  font-size: 2.2rem;
+  color: rgba(255, 255, 255, 0.7);
+  font-family: serif;
+  font-weight: bold;
+  text-shadow: 0 0 8px rgba(0,0,0,0.8);
+}
+
+/* 死亡投票权微章 */
+.dead-vote-token {
+  position: absolute;
+  bottom: -6px;
+  right: -6px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #8b0f0f 0%, #4a0606 100%);
+  border: 1.5px solid hsl(var(--gold));
+  color: white;
+  font-size: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+  z-index: 15;
+  transition: var(--transition-smooth);
+}
+
+.dead-vote-token.used {
+  background: #333;
+  border-color: #555;
+  color: #777;
+  transform: scale(0.9);
+  box-shadow: none;
+}
+
+/* 状态气泡小徽章：中毒、醉酒、守护 */
+.state-bubbles-row {
+  position: absolute;
+  top: -8px;
+  left: -8px;
+  display: flex;
+  gap: 3px;
+  z-index: 15;
+}
+
+.state-bubble {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+  border: 1px solid rgba(255,255,255,0.15);
+}
+
+.state-bubble.poisoned { background: hsl(var(--poison-green)); }
+.state-bubble.drunk { background: hsl(var(--drunk-purple)); }
+.state-bubble.safe { background: hsl(var(--safe-blue)); }
+
+/* ==========================================================================
+   玩家信息与说书人日志管理抽屉
+   ========================================================================== */
+
+.st-control-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.st-log-drawer {
+  background: rgba(10, 5, 6, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 12px;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.log-entry {
+  font-size: 0.75rem;
+  color: hsl(var(--text-muted));
+  margin-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+  padding-bottom: 4px;
+}
+
+.log-entry strong {
+  color: hsl(var(--gold));
+}
+
+/* ==========================================================================
+   夜间流程引导弹窗 (Night Guide Modal)
+   ========================================================================== */
+
+.night-modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(3, 1, 2, 0.95);
+  z-index: 200;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.night-modal-backdrop.active {
+  display: flex;
+}
+
+.night-modal-card {
+  width: 100%;
+  max-width: 400px;
+  background: linear-gradient(135deg, #1c0e10 0%, #0c0506 100%);
+  border: 2px solid hsl(var(--gold));
+  border-radius: 16px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.9);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: modalSlide 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.night-step-header {
+  border-bottom: 1px solid rgba(212, 175, 55, 0.15);
+  padding-bottom: 10px;
+  margin-bottom: 15px;
+}
+
+.night-step-badge {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  color: hsl(var(--gold));
+  letter-spacing: 2px;
+  font-weight: bold;
+}
+
+.night-step-title {
+  font-family: var(--font-title);
+  font-size: 1.4rem;
+  color: white;
+  margin-top: 3px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.night-step-instruction {
+  font-size: 0.9rem;
+  color: hsl(var(--text-primary));
+  background: rgba(0, 0, 0, 0.4);
+  padding: 12px;
+  border-radius: 10px;
+  margin-bottom: 15px;
+  line-height: 1.4;
+  border-left: 3px solid hsl(var(--gold));
+}
+
+.night-action-selector {
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ==========================================================================
+   玩家专属视角 (Player Viewer SPA Sub-view)
+   ========================================================================== */
+
+.player-view-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 20px;
+  text-align: center;
+}
+
+.player-gold-card {
+  border: 3px double hsl(var(--gold));
+  background: radial-gradient(circle, #221013 0%, #0d0607 100%);
+  border-radius: 20px;
+  padding: 40px 20px;
+  box-shadow: 0 15px 40px rgba(0,0,0,0.9);
+  max-width: 320px;
+  width: 100%;
+}
+
+/* ==========================================================================
+   按钮组件与微交互样式 (Buttons)
+   ========================================================================== */
+
+.btn {
+  font-family: var(--font-ui);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 24px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  border-radius: 10px;
+  cursor: pointer;
+  outline: none;
+  transition: var(--transition-smooth);
+  width: 100%;
+  border: none;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, hsl(var(--blood-red)) 0%, #631207 100%);
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  color: white;
+  box-shadow: 0 4px 15px rgba(139, 15, 15, 0.4);
+}
+
+.btn-primary:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 5px rgba(139, 15, 15, 0.2);
+}
+
+.btn-secondary {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: hsl(var(--text-primary));
+}
+
+.btn-secondary:active {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.btn-gold {
+  background: linear-gradient(135deg, hsl(var(--gold)) 0%, #b59223 100%);
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  color: #1a0f12;
+  box-shadow: 0 4px 15px rgba(212, 175, 55, 0.25);
+}
+
+.btn-gold:active {
+  transform: translateY(2px);
+}
+
+.btn-action-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+/* 顶部/底部操作浮动工具栏 */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background: linear-gradient(to top, rgba(13, 6, 7, 0.95) 80%, transparent 100%);
+  padding: 10px 20px calc(var(--safe-bottom) + 10px);
+  border-top: 1px solid rgba(255, 255, 255, 0.03);
+  z-index: 90;
+  display: flex;
+  justify-content: center;
+}
+
+.bottom-nav .nav-content {
+  width: 100%;
+  max-width: 460px;
+}
+
+/* ==========================================================================
+   动画与特殊动效定义 (Animations)
+   ========================================================================== */
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes modalSlide {
+  from {
+    opacity: 0;
+    transform: translateY(30px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* 暗色滚动条样式 */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(212, 175, 55, 0.15);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--gold));
+}
