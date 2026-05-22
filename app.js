@@ -610,6 +610,16 @@ class AppController {
     this.saveToLocalStorage();
   }
 
+  // 找出本局分配给玩家的恶魔角色，用于疯子发牌时的伪装
+  getActualDemonRoleData() {
+    const demonPlayer = this.state.players.find(p => p.roleData && p.roleData.type === 'demon');
+    if (demonPlayer) {
+      return demonPlayer.roleData;
+    }
+    // 如果没有找到（例如混编未选恶魔等极端情况），默认返回小恶魔
+    return this.findRoleData('imp') || { name: '小恶魔', type: 'demon', ability: '每个夜晚*，选择一名玩家：该玩家死亡。' };
+  }
+
   // 翻牌分配模式控制器
   renderPassModeState() {
     const passPlayer = document.getElementById('pass-player-target');
@@ -627,7 +637,12 @@ class AppController {
 
       // 预渲染背牌信息
       const playerObj = this.state.players[this.state.distCurrentIndex];
-      const char = playerObj.roleData;
+      let char = playerObj.roleData;
+      
+      // 疯子发牌伪装逻辑：如果真实角色是疯子，则向玩家显示本局实际的恶魔卡牌信息
+      if (playerObj.role === 'lunatic') {
+        char = this.getActualDemonRoleData();
+      }
       
       document.getElementById('pass-role-type').innerText = this.getRoleTypeCN(char.type);
       document.getElementById('pass-role-type').style.color = this.getRoleTypeColor(char.type);
@@ -682,8 +697,22 @@ class AppController {
 
     document.getElementById('qr-target-text-info').innerText = `正在展示：${idx + 1}号 [${p.name}] 的专属卡片`;
 
+    // 疯子扫码伪装：如果真实身份是疯子，加密传输本场的恶魔角色详情，使其完全不知情
+    let roleKey = p.role;
+    let roleName = p.roleData.name;
+    let roleType = p.roleData.type;
+    let roleAbility = p.roleData.ability;
+    
+    if (p.role === 'lunatic') {
+      const actualDemon = this.getActualDemonRoleData();
+      roleKey = actualDemon.key || 'imp';
+      roleName = actualDemon.name;
+      roleType = actualDemon.type;
+      roleAbility = actualDemon.ability;
+    }
+
     // 序列化编码玩家数据至 URL 参数以供完全解密
-    const secretPayload = `${p.name}::${p.role}::${p.roleData.name}::${p.roleData.type}::${p.roleData.ability}`;
+    const secretPayload = `${p.name}::${roleKey}::${roleName}::${roleType}::${roleAbility}`;
     // 使用标准 UTF-8 Base64 安全打包
     const obfuscated = btoa(unescape(encodeURIComponent(secretPayload)));
 
@@ -717,6 +746,19 @@ class AppController {
     
     this.state.logs = [];
     this.addLog("系统", "游戏魔盘构建完毕，游戏正式开始。");
+
+    // 疯子说书人提醒机制：检测是否有玩家分配到“疯子”身份，如果有则提示说书人其真身与伪装身份
+    const lunaticPlayer = this.state.players.find(p => p.role === 'lunatic');
+    if (lunaticPlayer) {
+      const actualDemon = this.getActualDemonRoleData();
+      
+      // 延迟 300ms 弹出说书人警告弹窗，确保视图切页过渡顺利
+      setTimeout(() => {
+        alert(`【🚨 说书人重要警示 - 疯子已配置】\n\n本局游戏中有玩家分配到了【疯子】(Lunatic) 角色！\n\n👤 玩家名称: ${lunaticPlayer.name} (座位号 ${lunaticPlayer.index + 1})\n🎭 伪装恶魔: ${actualDemon.name}\n\n该玩家刚才在看牌时被告知他是【${actualDemon.name}】。\n\n说书人重要提示：\n1. 第一晚行动时，你需要向他展示伪装的恶魔卡牌，并向其指出本局的“爪牙”（通常是善良阵营玩家）；\n2. 他的每一次夜间击杀都是无效的，但在当晚真实恶魔行动时，你需要将他的选择展示给真正的恶魔。`);
+      }, 300);
+      
+      this.addLog("系统", `🚨 <strong>说书人警示</strong>: 玩家 [${lunaticPlayer.name}] (座位 ${lunaticPlayer.index + 1}) 的真实角色为【疯子】，他以为自己是恶魔【${actualDemon.name}】。`);
+    }
 
     // 切到魔典界面
     this.switchView('grim-view');
