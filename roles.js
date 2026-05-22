@@ -30,7 +30,7 @@ const ROLES_DATA = {
         firstNight: 110
       },
       chef: {
-        name: "主厨",
+        name: "厨师",
         en: "Chef",
         type: "townsfolk",
         ability: "你在首个夜晚开始时，会得知有多少对邪恶玩家彼此相邻。",
@@ -38,7 +38,7 @@ const ROLES_DATA = {
         firstNight: 120
       },
       empath: {
-        name: "共感者",
+        name: "共情者",
         en: "Empath",
         type: "townsfolk",
         ability: "每个夜晚，你会得知你相邻的两名存活玩家中有多少名是邪恶玩家。",
@@ -82,7 +82,7 @@ const ROLES_DATA = {
         otherNight: 170
       },
       virgin: {
-        name: "处女",
+        name: "圣女",
         en: "Virgin",
         type: "townsfolk",
         ability: "当你被提名时，如果提名你的是一名村民，该玩家会立即被处决而你不会死。",
@@ -121,7 +121,7 @@ const ROLES_DATA = {
         otherNight: 310
       },
       drunk: {
-        name: "醉汉",
+        name: "酒鬼",
         en: "Drunk",
         type: "outsider",
         ability: "你不知道自己是醉汉。你以为自己是一个村民，但你的能力并不起作用。",
@@ -163,11 +163,11 @@ const ROLES_DATA = {
         otherNight: 330
       },
       scarletwoman: {
-        name: "红唇女郎",
+        name: "魅魔",
         en: "Scarlet Woman",
         type: "minion",
         ability: "如果存活玩家人数不小于五人且恶魔死亡，你变成恶魔。",
-        wakeOther: "如果原恶魔今天死亡且存活玩家 >= 5 人：唤醒红唇女郎，向她展示恶魔标志，并告诉她【你是恶魔】。",
+        wakeOther: "如果原恶魔今天死亡且存活玩家 >= 5 人：唤醒魅魔，向她展示恶魔标志，并告诉她【你是恶魔】。",
         otherNight: 140
       },
       baron: {
@@ -213,7 +213,7 @@ const ROLES_DATA = {
         otherNight: 30
       },
       chambermaid: {
-        name: "女侍",
+        name: "侍女",
         en: "Chambermaid",
         type: "townsfolk",
         ability: "每个夜晚，选择两名存活玩家（不包括你自己）：你会得知他们今天夜里是否因为自身角色能力而苏醒过。",
@@ -247,14 +247,14 @@ const ROLES_DATA = {
         otherNight: 260
       },
       gossip: {
-        name: "闲话者",
+        name: "造谣者",
         en: "Gossip",
         type: "townsfolk",
         ability: "每个白天，你可以公开说出一句陈述。今天夜里，如果该陈述为真，会有一名玩家死亡。",
         abilityType: "passive"
       },
       courtier: {
-        name: "宫廷御侍",
+        name: "侍臣",
         en: "Courtier",
         type: "townsfolk",
         ability: "每个游戏一次，在夜晚，选择一个特定的角色：该角色在接下来三天三夜里处于醉酒状态。",
@@ -279,7 +279,7 @@ const ROLES_DATA = {
         abilityType: "passive"
       },
       tealady: {
-        name: "茶艺师",
+        name: "茶水女",
         en: "Tea Lady",
         type: "townsfolk",
         ability: "如果你相邻的两名存活玩家均是善良阵营的，他们便无法死亡。",
@@ -293,7 +293,7 @@ const ROLES_DATA = {
         abilityType: "passive"
       },
       fool: {
-        name: "愚人",
+        name: "弄臣",
         en: "Fool",
         type: "townsfolk",
         ability: "当你首次死亡时，你不会死亡（保留你的存活标记，该免死特效仅触发一次）。",
@@ -301,32 +301,35 @@ const ROLES_DATA = {
       },
       // 外来者
       tinker: {
-        name: "补锅匠",
+        name: "修补匠",
         en: "Tinker",
         type: "outsider",
         ability: "你可能会在任何时间以任何方式被说书人宣布死亡。",
         abilityType: "passive"
       },
       moonchild: {
-        name: "月光之子",
+        name: "月之子",
         en: "Moonchild",
         type: "outsider",
         ability: "当你被处决并死亡时，在今天夜里，你必须公开指定一名存活玩家：如果该玩家是善良的，他会死亡。",
         abilityType: "passive"
       },
       goon: {
-        name: "打手",
+        name: "暴徒",
         en: "Goon",
         type: "outsider",
         ability: "每个夜晚，第一个使用自身能力选择你作为目标的玩家会处于醉酒状态直至黄昏。你变成与他相同的阵营。",
         abilityType: "passive"
       },
-      mutant: {
-        name: "畸形人",
-        en: "Mutant",
+      lunatic: {
+        name: "疯子",
+        en: "Lunatic",
         type: "outsider",
-        ability: "如果你mad地（疯狂地）坚称自己是外来者，你可能会被说书人当场处决死亡。",
-        abilityType: "passive"
+        ability: "你不知道自己是疯子。你以为自己是恶魔，但你的选择不产生实际效果。在首个夜晚，你会得知谁是你的爪牙，但他们得知你是疯子。每个夜晚，你会被唤醒并选择击杀目标，且你会得知恶魔今晚的选择。",
+        wakeFirst: "向其展示【恶魔】角色标记。指向几名玩家代表【爪牙】（真正的爪牙得知他是疯子）。",
+        wakeOther: "唤醒疯子并让他选择击杀目标。在真实恶魔苏醒时，把疯子的选择告诉真实恶魔。",
+        firstNight: 165,
+        otherNight: 125
       },
       // 爪牙
       godfather: {
@@ -340,7 +343,7 @@ const ROLES_DATA = {
         otherNight: 110
       },
       devilsadvocate: {
-        name: "恶魔代理人",
+        name: "魔鬼代言人",
         en: "Devil's Advocate",
         type: "minion",
         ability: "每个夜晚*，选择一名玩家（不能与上一晚相同）：该玩家在明天即使被处决也免于死亡。",
@@ -356,7 +359,7 @@ const ROLES_DATA = {
         otherNight: 110
       },
       mastermind: {
-        name: "策划者",
+        name: "幕后主谋",
         en: "Mastermind",
         type: "minion",
         ability: "如果恶魔在白天因处决死亡，游戏不会结束，继续进行一天一夜。善良阵营必须在明天的白天处决你才能获胜。",
@@ -372,17 +375,17 @@ const ROLES_DATA = {
         otherNight: 130
       },
       pukka: {
-        name: "沙巴",
+        name: "纯血恶魔",
         en: "Pukka",
         type: "demon",
         ability: "每个夜晚，选择一名玩家：该玩家严重中毒。上一晚被你下毒的玩家在今天夜里被毒死。",
-        wakeFirst: "选择一名玩家下毒。标记该玩家为【沙巴下毒】。",
-        wakeOther: "上一晚被沙巴下毒的目标死亡。再次选择一名玩家下毒（标记为沙巴下毒）。",
+        wakeFirst: "选择一名玩家下毒。标记该玩家为【纯血恶魔下毒】。",
+        wakeOther: "上一晚被纯血恶魔下毒的目标死亡。再次选择一名玩家下毒（标记为纯血恶魔下毒）。",
         firstNight: 180,
         otherNight: 130
       },
       shabaloth: {
-        name: "沙巴洛斯",
+        name: "暴食者",
         en: "Shabaloth",
         type: "demon",
         ability: "每个夜晚*，选择至多两名玩家：他们死亡。在每个夜晚，可能会有被你吞下的一名已死亡玩家在说书人的裁决下重新复活。",
@@ -480,7 +483,7 @@ const ROLES_DATA = {
         type: "townsfolk",
         ability: "每个游戏一次，在夜晚，选择两名玩家（不包括你自己）：你会得知他们两人的阵营是否相同。",
         wakeFirst: "你可以指向两名玩家。如果是相同阵营说书人点头，不同则摇头。标记能力【已使用】。",
-        wakeOther: "如果能力尚未使用，你可以指向两名玩家。相同阵营说书人点头，不同则摇头。标记能力【已使用】。",
+        wakeOther: "如果能力尚未使用，你可以指向两名玩家. 相同阵营说书人点头，不同则摇头。标记能力【已使用】。",
         firstNight: 220,
         otherNight: 320
       },
@@ -662,6 +665,7 @@ const MASTER_NIGHT_ORDER = {
     empath: 140,
     fortuneteller: 150,
     butler: 160,
+    lunatic: 165, // Add Lunatic (疯子) here
     godfather: 170,
     pukka: 180,
     dreamer: 190,
@@ -697,6 +701,7 @@ const MASTER_NIGHT_ORDER = {
     subassassin: 110,
     godfather: 115,
     exorcist: 120,
+    lunatic: 125, // Add Lunatic (疯子) here
     
     // 恶魔行动阶段 (Imp, Zombuul, Pukka, Shabaloth, Po, Fang Gu, Vigormortis, No Dashii, Vortox)
     // 它们共享同一个相对时间段
@@ -737,7 +742,7 @@ const MASTER_NIGHT_ORDER = {
   }
 };
 
-// 导出模块 (支持浏览器 global 加载和 node 导入)
+// 导出模块 (支持浏览器 global 加载 and node 导入)
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { ROLES_DATA, MASTER_NIGHT_ORDER };
 } else {
