@@ -655,10 +655,23 @@ class AppController {
   }
 
   confirmNextPassPlayer() {
-    this.state.distCurrentIndex++;
-    this.updateDistProgressBadge();
-    this.renderPassModeState();
-    this.saveToLocalStorage();
+    const flipper = document.getElementById('card-reveal-flipper');
+    const confirmBtn = document.getElementById('btn-pass-confirm-next');
+
+    // 1. 物理层先将卡牌翻转回正面（盖起），彻底遮挡背部文字
+    flipper.classList.remove('flipped');
+    this.state.distRevealed = false;
+    
+    // 2. 立即禁用按钮，避免传递过程中发生快速连击或并发错误
+    confirmBtn.setAttribute('disabled', 'true');
+
+    // 3. 延迟 600ms（等 3D 旋转动效彻底完成、牌面扣过去后），再切换下一个玩家指针并更新背部身份文本
+    setTimeout(() => {
+      this.state.distCurrentIndex++;
+      this.updateDistProgressBadge();
+      this.renderPassModeState();
+      this.saveToLocalStorage();
+    }, 600);
   }
 
   // 扫码看牌分配模式控制器
