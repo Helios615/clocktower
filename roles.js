@@ -51,9 +51,9 @@ const ROLES_DATA = {
         name: "占卜师",
         en: "Fortune Teller",
         type: "townsfolk",
-        ability: "每个夜晚，选择两名玩家：你会得知其中是否存在恶魔。有一名善良玩家在你的感知中始终注册为恶魔（红鲱鱼）。",
-        wakeFirst: "指向两名玩家。如果其中有恶魔或你的【红鲱鱼】目标，则说书人点头，否则摇头。",
-        wakeOther: "指向两名玩家。如果其中有恶魔或你的【红鲱鱼】目标，则说书人点头，否则摇头。",
+        ability: "每个夜晚，选择两名玩家：你会得知其中是否存在恶魔。有一名善良玩家在你的感知中始终注册为恶魔（宿敌）。",
+        wakeFirst: "指向两名玩家。如果其中有恶魔或你的【宿敌】目标，则说书人点头，否则摇头。",
+        wakeOther: "指向两名玩家。如果其中有恶魔或你的【宿敌】目标，则说书人点头，否则摇头。",
         firstNight: 150,
         otherNight: 210
       },
@@ -622,6 +622,112 @@ const ROLES_DATA = {
         otherNight: 130
       }
     }
+  },
+
+  // === 剧本 4: 胜负难料 (迷你版 - Teensyville) ===
+  custom_teensy: {
+    name: "胜负难料 (迷你版)",
+    characters: {
+      // 村民 (Townsfolk)
+      farmer: {
+        name: "农夫",
+        en: "Farmer",
+        type: "townsfolk",
+        ability: "如果你在夜晚死亡，一名存活玩家会变成【农夫】（即便你没有能力且已死）。",
+        abilityType: "passive"
+      },
+      snakecharmer: {
+        name: "舞蛇人 (蛇魅)",
+        en: "Snake Charmer",
+        type: "townsfolk",
+        ability: "每个夜晚，选择一名存活玩家：如果是恶魔，你与他交换角色与阵营，并且他（现在的蛇魅）陷入严重中毒状态。",
+        wakeFirst: "选择一名存活玩家。如果是恶魔，互换两人的角色卡与阵营，并标记原恶魔为【严重中毒】；把新恶魔弄醒展示恶魔卡片。",
+        wakeOther: "选择一名存活玩家。如果是恶魔，互换两人的角色卡与阵营，并标记原恶魔为【严重中毒】；把新恶魔弄醒展示恶魔卡片。",
+        firstNight: 50,
+        otherNight: 30
+      },
+      artist: {
+        name: "艺术家",
+        en: "Artist",
+        type: "townsfolk",
+        ability: "每个游戏一次，在白天，你可以单独向说书人提出任何可以回答【是】、【否】或【不知道】的问题，并获得真实回答。",
+        abilityType: "passive"
+      },
+      huntsman: {
+        name: "猎手 (Huntsman)",
+        en: "Huntsman",
+        type: "townsfolk",
+        ability: "每个游戏一次，在夜晚，选择一名玩家：如果他是女爵，他变成存活的村民（即使你已经死亡/无能力）。（由于本局无女爵，该技能通常无实际效果，但可作为伪装）",
+        wakeOther: "您可以选择一名玩家寻找女爵（本局无女爵，将无事发生）。标记能力【已使用】。",
+        otherNight: 112
+      },
+      cannibal: {
+        name: "食人族",
+        en: "Cannibal",
+        type: "townsfolk",
+        ability: "如果你邻座的玩家死亡，你获得其能力。如果他是邪恶的，你处于中毒状态。",
+        abilityType: "passive"
+      },
+      ravenkeeper: {
+        name: "守鸦人",
+        en: "Ravenkeeper",
+        type: "townsfolk",
+        ability: "如果你在夜里被杀死，你会立即被唤醒并选择一名玩家：你会得知其角色身份。",
+        wakeOther: "如果守鸦人今晚被恶魔杀死：唤醒他，让他指向一名玩家，向他展示该玩家的角色标记。",
+        otherNight: 170
+      },
+      // 外来者 (Outsiders)
+      heretic: {
+        name: "异端分子",
+        en: "Heretic",
+        type: "outsider",
+        ability: "如果异端分子在场，邪恶阵营获胜则善良获胜，反之亦然。",
+        abilityType: "passive"
+      },
+      puzzlemaster: {
+        name: "解谜大师",
+        en: "Puzzlemaster",
+        type: "outsider",
+        ability: "有一名善良玩家处于醉酒状态（即便他不知道）。你开始时会得知这一信息。每个游戏一次，在白天，你可以公开猜测谁是恶魔：如果猜对，你会得知谁是醉酒的玩家；如果猜错，无事发生。",
+        wakeFirst: "向解谜大师展示因为他的技能而处于【醉酒】状态的玩家（首夜说书人选定）。",
+        firstNight: 105
+      },
+      sweetheart: {
+        name: "心上人 (心碎者)",
+        en: "Sweetheart",
+        type: "outsider",
+        ability: "当你死亡时，说书人会选择一名玩家：该玩家从现在起永久处于醉酒状态。",
+        wakeOther: "如果心上人今天死亡：说书人秘密挑选一名玩家，打上永久【醉酒】标记。",
+        otherNight: 160
+      },
+      lunatic: {
+        name: "疯子",
+        en: "Lunatic",
+        type: "outsider",
+        ability: "你不知道自己是疯子。你以为自己是恶魔，但你的选择不产生实际效果。在首个夜晚，你会得知谁是你的爪牙，但他们得知你是疯子。每个夜晚，你会被唤醒并选择击杀目标，且你会得知恶魔今晚的选择。",
+        wakeFirst: "向其展示【恶魔】角色标记。指向几名玩家代表【爪牙】（真正的爪牙得知他是疯子）。",
+        wakeOther: "唤醒疯子并让他选择击杀目标。在真实恶魔苏醒时，把疯子的选择告诉真实恶魔。",
+        firstNight: 165,
+        otherNight: 125
+      },
+      // 爪牙 (Minions)
+      marionette: {
+        name: "提线木偶",
+        en: "Marionette",
+        type: "minion",
+        ability: "你不知道自己是提线木偶。你以为自己是善良角色，但你其实是爪牙。你必须与恶魔相邻存活。你免疫恶魔的夜间袭击。",
+        abilityType: "passive"
+      },
+      // 恶魔 (Demons)
+      fanggu: {
+        name: "方古 (方辜)",
+        en: "Fang Gu",
+        type: "demon",
+        ability: "每个夜晚*，选择一名玩家：他死亡。你首次选择杀害一名善良外来者时，他变成邪恶阵营的方古恶魔，而你（原方古）死亡。[+1 外来者]",
+        wakeOther: "选择一名玩家杀害。如果是善良外来者且首次触发，将其角色转化为【邪恶方古】，原方古死亡宣告，新方古在夜间醒来并被告知恶魔身份。",
+        otherNight: 135
+      }
+    }
   }
 };
 
@@ -659,6 +765,7 @@ const MASTER_NIGHT_ORDER = {
     // 信息收集
     washerwoman: 90,
     librarian: 100,
+    puzzlemaster: 105,
     investigator: 110,
     chef: 120,
     clockmaker: 130,
@@ -699,6 +806,7 @@ const MASTER_NIGHT_ORDER = {
     
     // 物理击杀/刺客/教父/驱魔
     subassassin: 110,
+    huntsman: 112,
     godfather: 115,
     exorcist: 120,
     lunatic: 125, // Add Lunatic (疯子) here

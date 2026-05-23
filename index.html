@@ -35,8 +35,9 @@
       </div>
       
       <p id="player-target-name" style="font-size: 0.9rem; color: hsl(var(--text-muted)); font-weight: 500;">玩家: --</p>
-      <div style="margin-top: 25px;">
-        <button class="btn btn-secondary" onclick="window.close(); alert('请关闭本窗口或浏览器标签页');" style="font-size: 0.8rem; padding: 8px 16px;">确认并关闭</button>
+      <div style="margin-top: 25px; display: flex; flex-direction: column; gap: 10px;">
+        <button class="btn btn-primary" onclick="app.openPlayerScriptReferenceModal();" style="font-size: 0.8rem; padding: 8px 16px; border-radius: 6px;">📜 查看本剧本全角色说明</button>
+        <button class="btn btn-secondary" onclick="window.close(); alert('请关闭本窗口或浏览器标签页');" style="font-size: 0.8rem; padding: 8px 16px; border-radius: 6px;">确认并关闭</button>
       </div>
     </div>
   </div>
@@ -70,7 +71,9 @@
               <option value="tb">灾祸滋生 (Trouble Brewing)</option>
               <option value="bmr">黯月升起 (Bad Moon Rising)</option>
               <option value="snv">教派与紫罗兰 (Sects & Violets)</option>
+              <option value="custom_teensy">胜负难料 (迷你局)</option>
             </select>
+            <button class="btn btn-secondary" onclick="app.openScriptReferenceModal();" style="margin-top: 10px; width: 100%;">📜 查看当前剧本角色说明</button>
           </div>
 
           <div class="switch-container" style="margin-bottom: 15px;">
@@ -136,6 +139,14 @@
           <p style="font-size: 0.75rem; color: hsl(var(--text-muted)); margin-bottom: 15px;">
             请从列表中挑选出本局可能出现的角色（最少选择与人数相符的配置，也可多选供分配），或点击随机选择。
           </p>
+
+          <!-- 动态角色池配置名额指示器 -->
+          <div class="distribution-badge-container" id="pool-dist-badges" style="margin-top: -5px; margin-bottom: 15px;">
+            <div class="dist-badge townsfolk">村民<span id="pool-count-townsfolk" style="font-size: 0.85rem; margin-top: 4px;">选 0 / 3</span></div>
+            <div class="dist-badge outsider">外来者<span id="pool-count-outsider" style="font-size: 0.85rem; margin-top: 4px;">选 0 / 0</span></div>
+            <div class="dist-badge minion">爪牙<span id="pool-count-minion" style="font-size: 0.85rem; margin-top: 4px;">选 0 / 1</span></div>
+            <div class="dist-badge demon">恶魔<span id="pool-count-demon" style="font-size: 0.85rem; margin-top: 4px;">选 0 / 1</span></div>
+          </div>
           
           <div class="btn-action-row" style="margin-bottom: 20px;">
             <button class="btn btn-secondary" onclick="app.clearPoolSelection();">清空重选</button>
@@ -300,6 +311,21 @@
               <button class="btn btn-secondary" onclick="if(confirm('确定重置本局游戏？')){app.resetEntireGame();}">重置本局</button>
               <button class="btn btn-secondary" onclick="app.switchView('setup-view');">修改配置</button>
             </div>
+            <button class="btn btn-secondary" onclick="app.openScriptReferenceModal();" style="width: 100%; margin-top: 10px; font-size: 0.85rem; padding: 8px 0; border-radius: 6px;">📜 全角色说明</button>
+          </div>
+        </div>
+
+        <!-- 昨晚行动备忘板 (Last Night Memo) -->
+        <div class="glass-card" id="last-night-memo-card" style="display: none; margin-bottom: 10px; border-color: rgba(52, 152, 219, 0.25); background: rgba(20, 35, 45, 0.45);">
+          <div class="section-title" style="border-left-color: #5dade2;">
+            <span>昨晚玩家行动与信息备忘</span>
+            <span style="font-size: 0.75rem; color: #5dade2;" id="last-night-memo-phase-text">第一夜晚</span>
+          </div>
+          <div style="font-size: 0.7rem; color: hsl(var(--text-muted)); margin-top: -10px; margin-bottom: 10px; line-height: 1.35;">
+            * 此备忘录伴随夜间说书人引导动态录入，并在白天持续展示。第二天入夜时会自动刷新清空。
+          </div>
+          <div id="last-night-memo-container" style="display: flex; flex-direction: column; gap: 8px; font-size: 0.8rem; background: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.03);">
+            <div style="color: hsl(var(--text-muted)); text-align: center; font-style: italic; padding: 5px 0;">昨夜无玩家醒来或未录入行动数据</div>
           </div>
         </div>
 
@@ -344,6 +370,28 @@
         </div>
       </div>
 
+      <!-- 酒鬼伪装角色选择框 -->
+      <div class="form-group" id="edit-player-drunk-role-container" style="display: none; margin-top: 10px; padding: 10px; border-radius: 8px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05);">
+        <label for="edit-player-drunk-role-field" style="font-size: 0.8rem; color: hsl(var(--gold)); font-weight: bold; margin-bottom: 4px; display: block;">酒鬼伪装村民角色 (Drunk's Fake Role)</label>
+        <select id="edit-player-drunk-role-field" class="form-control" onchange="app.onModalDrunkRoleChange();">
+          <!-- Dynamically populated with Townsfolk characters -->
+        </select>
+        <div style="font-size: 0.7rem; color: hsl(var(--text-muted)); margin-top: 4px; line-height: 1.3;" id="edit-player-drunk-role-ability">
+          伪装角色能力说明...
+        </div>
+      </div>
+
+      <!-- 占卜师宿敌选择框 -->
+      <div class="form-group" id="edit-player-ft-redherring-container" style="display: none; margin-top: 10px; padding: 10px; border-radius: 8px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05);">
+        <label for="edit-player-ft-redherring-field" style="font-size: 0.8rem; color: hsl(var(--gold)); font-weight: bold; margin-bottom: 4px; display: block;">配置占卜师宿敌 (Red Herring)</label>
+        <select id="edit-player-ft-redherring-field" class="form-control">
+          <!-- Dynamically populated with other players -->
+        </select>
+        <div style="font-size: 0.7rem; color: hsl(var(--text-muted)); margin-top: 4px; line-height: 1.3;">
+          占卜师的宿敌在占卜中会始终被视为“恶魔”。此配置贯穿全场，说书人应在首夜或入夜前指定。
+        </div>
+      </div>
+
       <!-- State switches grid -->
       <div class="glass-card" style="padding: 12px; margin-bottom: 15px; border-color: rgba(255,255,255,0.05); background: rgba(0,0,0,0.2);">
         <div class="switch-container">
@@ -360,6 +408,15 @@
             <input type="checkbox" id="edit-state-vote-token">
             <span class="slider"></span>
           </label>
+        </div>
+
+        <!-- 死亡类型区分选择器 -->
+        <div class="form-group" id="edit-death-type-container" style="display: none; border-top: 1px solid rgba(255,255,255,0.03); padding-top: 8px; margin-top: 8px; margin-bottom: 0;">
+          <label for="edit-death-type-field" style="font-size: 0.8rem; color: hsl(var(--text-muted)); font-weight: bold; margin-bottom: 4px; display: block;">死亡标记类型 (Death Type)</label>
+          <select id="edit-death-type-field" class="form-control" style="font-size: 0.8rem; padding: 4px 8px; height: auto; background: rgba(0,0,0,0.5); border-color: rgba(255,255,255,0.1);">
+            <option value="killed">击杀/被杀 💀 (Killed - 经典十字)</option>
+            <option value="executed">处决/投票死 🪓 (Executed - 刽子斧)</option>
+          </select>
         </div>
       </div>
 
@@ -427,6 +484,20 @@
       <div class="btn-action-row">
         <button class="btn btn-secondary" onclick="app.prevNightStep();" id="btn-night-prev">上一步</button>
         <button class="btn btn-primary" onclick="app.nextNightStep();" id="btn-night-next-step">下一步</button>
+      </div>
+    </div>
+  <!-- 模态框 3: 剧本全角色说明 (Script Reference Sheet Modal) -->
+  <div id="script-reference-modal" class="night-modal-backdrop" onclick="if(event.target === this) app.closeScriptReferenceModal();">
+    <div class="night-modal-card" style="max-width: 480px; width: 90vw;">
+      <div class="night-step-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(212, 175, 55, 0.2); padding-bottom: 10px; margin-bottom: 15px;">
+        <h3 style="font-family: var(--font-title); color: hsl(var(--gold)); margin: 0; font-size: 1.2rem;" id="ref-modal-title">剧本角色说明</h3>
+        <span style="cursor: pointer; font-size: 1.5rem; color: hsl(var(--text-muted)); font-weight: bold; line-height: 1;" onclick="app.closeScriptReferenceModal();">&times;</span>
+      </div>
+      <div id="ref-modal-body" style="overflow-y: auto; flex-grow: 1; padding-right: 5px;">
+        <!-- Categories and character list will be dynamically rendered here -->
+      </div>
+      <div style="margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 10px; display: flex; justify-content: flex-end;">
+        <button class="btn btn-secondary" onclick="app.closeScriptReferenceModal();" style="width: auto; padding: 6px 16px; font-size: 0.85rem; border-radius: 6px;">关闭</button>
       </div>
     </div>
   </div>

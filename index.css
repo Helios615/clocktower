@@ -650,7 +650,6 @@ input:checked + .slider:before {
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(139, 15, 15, 0.65);
   z-index: 5;
   opacity: 0;
   display: flex;
@@ -658,19 +657,36 @@ input:checked + .slider:before {
   justify-content: center;
   transition: opacity 0.4s ease;
   pointer-events: none;
+  border-radius: 50%; /* 保证完美契合圆盘 */
 }
 
 .player-seat-node.dead .seat-disk .shroud-overlay {
   opacity: 1;
 }
 
-.shroud-overlay::before {
+/* 经典被杀 (Killed) 寿衣：血红色 + 十字架记号 */
+.player-seat-node.dead.death-killed .seat-disk .shroud-overlay {
+  background: rgba(139, 15, 15, 0.68);
+}
+.player-seat-node.dead.death-killed .shroud-overlay::before {
   content: "†";
   font-size: 2.2rem;
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(255, 255, 255, 0.75);
   font-family: serif;
   font-weight: bold;
   text-shadow: 0 0 8px rgba(0,0,0,0.8);
+}
+
+/* 经典处决 (Executed) 寿衣：暗黑炭灰带血色渐变 + 华丽金边 + 断头斩刑斧 */
+.player-seat-node.dead.death-executed .seat-disk .shroud-overlay {
+  background: radial-gradient(circle, rgba(15, 15, 15, 0.95) 0%, rgba(95, 10, 10, 0.8) 100%);
+  border: 2px solid hsl(var(--gold));
+  box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.9);
+}
+.player-seat-node.dead.death-executed .shroud-overlay::before {
+  content: "🪓";
+  font-size: 1.6rem;
+  filter: drop-shadow(0 0 4px rgba(0,0,0,0.9));
 }
 
 /* 死亡投票权微章 */
