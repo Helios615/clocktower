@@ -634,7 +634,8 @@ const ROLES_DATA = {
         en: "Farmer",
         type: "townsfolk",
         ability: "如果你在夜晚死亡，一名存活玩家会变成【农夫】（即便你没有能力且已死）。",
-        abilityType: "passive"
+        wakeOther: "如果今天夜晚有农夫被恶魔杀害：唤醒一名存活的玩家，向其出示农夫标志，并告诉他【你是农夫】。",
+        otherNight: 168
       },
       snakecharmer: {
         name: "舞蛇人 (蛇魅)",
@@ -829,6 +830,7 @@ const MASTER_NIGHT_ORDER = {
     // 被动死亡与效果结算 (理发师、心碎者、守鸦人、贤者)
     barber: 150,
     sweetheart: 160,
+    farmer: 168,
     ravenkeeper: 170,
     sage: 175,
     

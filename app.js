@@ -28,7 +28,8 @@ class AppController {
       },
       currentNightRecord: {},    // 当晚玩家行动与获得信息临时记录
       fortuneTellerRedHerring: "", // 占卜师宿敌 (红鲱鱼) 玩家索引
-      nightRecords: {}             // 历夜说书人备忘历史记录
+      nightRecords: {},             // 历夜说书人备忘历史记录
+      fangguJumped: false          // 方古是否已经触发过外来者夺舍夺命变恶魔
     };
 
     // 2. 状态映射配置 (标准人数身份分配)
@@ -681,6 +682,17 @@ class AppController {
       this.state.puzzlemasterDrunkIndex = Math.floor(Math.random() * this.state.playerCount);
     }
 
+    // 如果随机勾选了提线木偶，确保其有一个好人伪装角色
+    if (this.state.pool.includes('marionette') && !this.state.marionetteRole) {
+      const goodRoles = [
+        ...this.getAvailableRolesList('townsfolk'),
+        ...this.getAvailableRolesList('outsider')
+      ];
+      if (goodRoles.length > 0) {
+        this.state.marionetteRole = goodRoles[Math.floor(Math.random() * goodRoles.length)].key;
+      }
+    }
+
     this.renderPoolSelectionView();
     this.saveToLocalStorage();
   }
@@ -812,6 +824,9 @@ class AppController {
         }
       }
     }
+
+    // 重置方古夺舍标记
+    this.state.fangguJumped = false;
 
     // 灌入初始玩家模型数组
     this.state.players = [];
@@ -988,6 +1003,11 @@ class AppController {
         char = this.findRoleData(playerObj.drunkRole) || char;
       }
       
+      // 提线木偶发牌伪装逻辑：如果真实角色是提线木偶，则向玩家显示其伪装的善良卡牌信息
+      if (playerObj.role === 'marionette' && playerObj.marionetteRole) {
+        char = this.findRoleData(playerObj.marionetteRole) || char;
+      }
+      
       document.getElementById('pass-role-type').innerText = this.getRoleTypeCN(char.type);
       document.getElementById('pass-role-type').style.color = this.getRoleTypeColor(char.type);
       document.getElementById('pass-role-name').innerText = char.name;
@@ -1065,6 +1085,16 @@ class AppController {
       }
     }
 
+    if (p.role === 'marionette' && p.marionetteRole) {
+      const fakeChar = this.findRoleData(p.marionetteRole);
+      if (fakeChar) {
+        roleKey = p.marionetteRole;
+        roleName = fakeChar.name;
+        roleType = fakeChar.type;
+        roleAbility = fakeChar.ability;
+      }
+    }
+
     // 序列化编码玩家数据至 URL 参数以供完全解密
     const secretPayload = `${p.name}::${roleKey}::${roleName}::${roleType}::${roleAbility}::${this.state.script}`;
     // 使用标准 UTF-8 Base64 安全打包
@@ -1098,6 +1128,7 @@ class AppController {
     this.state.dayNumber = 1;
     this.state.phase = 'night'; // 标准游戏均以首夜闭眼开始！
     
+    this.state.fangguJumped = false;
     this.state.logs = [];
     this.addLog("系统", "游戏魔盘构建完毕，游戏正式开始。");
 
@@ -1880,6 +1911,10 @@ class AppController {
         roleKeyForWaking = p.playerObject.drunkRole;
         roleDataForWaking = this.findRoleData(roleKeyForWaking) || p.role;
         isDrunkWaking = true;
+      } else if (p.roleKey === 'marionette' && p.playerObject.marionetteRole) {
+        roleKeyForWaking = p.playerObject.marionetteRole;
+        roleDataForWaking = this.findRoleData(roleKeyForWaking) || p.role;
+        isDrunkWaking = true;
       }
 
       const weight = orderMap[roleKeyForWaking];
@@ -1906,7 +1941,7 @@ class AppController {
               shouldWake = true;
             } else {
               // 特殊：死人可能依然需要睁眼结算一次的角色
-              if (['barber', 'sweetheart', 'ravenkeeper', 'sage'].includes(roleKeyForWaking)) {
+              if (['barber', 'sweetheart', 'ravenkeeper', 'sage', 'farmer'].includes(roleKeyForWaking)) {
                 // 只有在该死后释放技能尚未被触发结算过的情况下，才在死后苏醒一次！
                 if (!p.playerObject.abilityUsed) {
                   shouldWake = true;
@@ -2093,6 +2128,10 @@ class AppController {
     if (player && (player.poisoned || player.drunk)) {
       const reason = player.poisoned ? "中毒 🧪" : "醉酒 🍺";
       warningText += `⚠️ <strong>状态警告</strong>: 该玩家当前处于 [${reason}] 状态！其技能已失效，你<strong>必须</strong>向其提供<strong>【虚假/错误】</strong>的信息！（助手已为您自动预设错误选项）<br>`;
+    }
+    if (player && player.role === 'marionette') {
+      const fakeRoleName = this.findRoleData(player.marionetteRole)?.name || player.marionetteRole;
+      warningText += `⚠️ <strong>🚨 提线木偶虚假唤醒 🚨</strong>: 该玩家的真实角色为【提线木偶】！他自身坚信自己是【${fakeRoleName}】！你<strong>必须</strong>向其提供<strong>【虚假/错误】</strong>的信息，切勿向其泄露其真实身份！<br>`;
     }
     if (isVortoxInPlay && isGoodCamp) {
       warningText += `⚠️ <strong>漩涡魔规律干扰</strong>: 场上有存活的恶魔【漩涡魔】运作中，所有善良阵营玩家的感知信息<strong>【必须为假】</strong>！（助手已为您自动预设错误选项）<br>`;
@@ -2646,6 +2685,286 @@ class AppController {
         if (target && roleData) {
           setDraft(`守鸦人临终选择调查 [${target.name}]，得知其角色为: 【${roleData.name}】`);
         }
+      };
+    }
+
+    // farmer
+    else if (wakingKey === 'farmer') {
+      const targetSel = this.createSelectorElement("选择要变成农夫的存活玩家:", true); // onlyAlive = true
+
+      interactiveArea.appendChild(targetSel.row);
+      interactiveArea.appendChild(helperRow);
+
+      const updateFarmerText = () => {
+        const target = this.state.players[targetSel.select.value];
+        if (target) {
+          setDraft(`农夫临终传承，指定存活的 [${target.name}] 继承身份转变为村民【农夫】`);
+        }
+      };
+
+      targetSel.select.onchange = updateFarmerText;
+      updateFarmerText();
+
+      const originalSave = saveBtn.onclick;
+      saveBtn.onclick = () => {
+        const target = this.state.players[targetSel.select.value];
+        if (target) {
+          const oldRoleCN = target.roleData ? target.roleData.name : target.role;
+          target.role = 'farmer';
+          target.roleData = this.findRoleData('farmer');
+          
+          this.addLog("说书人", `农夫传承：[${target.name}] 的角色由 [${oldRoleCN}] 传承转变为 [农夫]`);
+          
+          if (player) {
+            player.abilityUsed = true;
+          }
+        }
+        originalSave();
+      };
+    }
+
+    // snakecharmer
+    else if (wakingKey === 'snakecharmer') {
+      const targetSel = this.createSTPlayerSelectorElement("选择要魅惑的玩家 (存活):", true);
+      interactiveArea.appendChild(targetSel.row);
+      interactiveArea.appendChild(helperRow);
+
+      const updateSC = () => {
+        const target = this.state.players[targetSel.select.value];
+        if (target) {
+          const isDemon = target.roleData && target.roleData.type === 'demon';
+          const isDrunkOrPoisoned = player && (player.drunk || player.poisoned);
+          
+          if (isDemon) {
+            helperRow.style.display = 'block';
+            if (isDrunkOrPoisoned) {
+              helperRow.style.color = '#e67e22';
+              helperRow.style.background = 'rgba(230, 126, 34, 0.1)';
+              helperRow.style.border = '1px solid rgba(230, 126, 34, 0.2)';
+              helperRow.innerHTML = `🔍 智能提示: 目标 [${target.name}] 是恶魔，但舞蛇人处于醉酒/中毒状态 🧪，魅惑无效，不会触发转换！⚠️`;
+              setDraft(`舞蛇人选择玩家 [${target.name}]（恶魔），但舞蛇人处于醉酒/中毒状态，魅惑失败，无事发生。`);
+            } else {
+              helperRow.style.color = '#2ecc71';
+              helperRow.style.background = 'rgba(46, 204, 113, 0.1)';
+              helperRow.style.border = '1px solid rgba(46, 204, 113, 0.2)';
+              helperRow.innerHTML = `🔍 智能提示: 目标 [${target.name}] 是恶魔！保存后将触发【舞蛇人转换】🟢`;
+              setDraft(`舞蛇人选择玩家 [${target.name}]。目标是恶魔！保存后将触发角色与阵营交换（目标变为中毒的舞蛇人，原舞蛇人变为恶魔）`);
+            }
+          } else {
+            helperRow.style.display = 'block';
+            helperRow.style.color = 'rgba(255,255,255,0.7)';
+            helperRow.style.background = 'rgba(255,255,255,0.05)';
+            helperRow.style.border = '1px solid rgba(255,255,255,0.1)';
+            helperRow.innerHTML = `🔍 智能提示: 目标 [${target.name}] 不是恶魔。`;
+            setDraft(`舞蛇人选择玩家 [${target.name}]，但目标不是恶魔，无事发生。`);
+          }
+        }
+      };
+
+      targetSel.select.onchange = updateSC;
+      updateSC();
+
+      const originalSave = saveBtn.onclick;
+      saveBtn.onclick = () => {
+        const target = this.state.players[targetSel.select.value];
+        if (target) {
+          const isDemon = target.roleData && target.roleData.type === 'demon';
+          const isDrunkOrPoisoned = player && (player.drunk || player.poisoned);
+          
+          if (isDemon && !isDrunkOrPoisoned) {
+            // Perform swap!
+            const oldDemonRole = target.role;
+            const oldDemonRoleData = target.roleData;
+
+            // Target becomes poisoned snakecharmer
+            target.role = 'snakecharmer';
+            target.roleData = this.findRoleData('snakecharmer');
+            target.poisoned = true; // snakecharmer is poisoned
+
+            // Original Snake Charmer (player) becomes the demon
+            if (player) {
+              player.role = oldDemonRole;
+              player.roleData = oldDemonRoleData;
+            }
+
+            this.addLog("说书人", `舞蛇人转换：舞蛇人 [${player ? player.name : '未知'}] 魅惑了恶魔 [${target.name}]。两者交换角色与阵营！[${target.name}] 变为中毒的【舞蛇人】(邪恶变善良)，[${player ? player.name : '未知'}] 变为新的【${oldDemonRoleData.name}】(善良变邪恶)！`);
+            
+            this.renderGrimoireCircle();
+            this.saveToLocalStorage();
+          }
+        }
+        originalSave();
+      };
+    }
+
+    // fanggu
+    else if (wakingKey === 'fanggu') {
+      const targetSel = this.createSTPlayerSelectorElement("选择袭击/杀害目标 (存活):", true);
+      interactiveArea.appendChild(targetSel.row);
+      interactiveArea.appendChild(helperRow);
+
+      const updateFG = () => {
+        const target = this.state.players[targetSel.select.value];
+        if (target) {
+          const isOutsider = target.roleData && target.roleData.type === 'outsider';
+          const isDrunkOrPoisoned = player && (player.drunk || player.poisoned);
+          
+          if (isOutsider) {
+            if (this.state.fangguJumped) {
+              helperRow.style.display = 'block';
+              helperRow.style.color = '#e74c3c';
+              helperRow.style.background = 'rgba(231, 76, 60, 0.1)';
+              helperRow.style.border = '1px solid rgba(231, 76, 60, 0.2)';
+              helperRow.innerHTML = `🔍 智能提示: 目标是外来者 [${target.name}]，但方古【本局已夺舍过】，目标将直接被杀害。💀`;
+              setDraft(`方古选择杀害外来者 [${target.name}]，但由于本局已夺舍过，目标正常死亡。`);
+            } else if (isDrunkOrPoisoned) {
+              helperRow.style.display = 'block';
+              helperRow.style.color = '#e67e22';
+              helperRow.style.background = 'rgba(230, 126, 34, 0.1)';
+              helperRow.style.border = '1px solid rgba(230, 126, 34, 0.2)';
+              helperRow.innerHTML = `🔍 智能提示: 目标是外来者 [${target.name}]，但方古处于醉酒/中毒状态 🧪，夺舍失效，目标将直接被杀害。💀`;
+              setDraft(`方古选择杀害外来者 [${target.name}]，但方古处于醉酒/中毒状态，夺舍失败，目标正常死亡。`);
+            } else {
+              helperRow.style.display = 'block';
+              helperRow.style.color = '#2ecc71';
+              helperRow.style.background = 'rgba(46, 204, 113, 0.1)';
+              helperRow.style.border = '1px solid rgba(46, 204, 113, 0.2)';
+              helperRow.innerHTML = `🔍 智能提示: 目标是外来者 [${target.name}] 且未夺舍过！保存后将触发【方古夺舍】。🟢`;
+              setDraft(`方古袭击外来者 [${target.name}] 并成功夺舍！[${target.name}] 转化为邪恶恶魔方古（继续存活），原方古 [${player ? player.name : '未知'}] 暴毙死亡 💀`);
+            }
+          } else {
+            helperRow.style.display = 'block';
+            helperRow.style.color = '#e74c3c';
+            helperRow.style.background = 'rgba(231, 76, 60, 0.1)';
+            helperRow.style.border = '1px solid rgba(231, 76, 60, 0.2)';
+            helperRow.innerHTML = `🔍 智能提示: 目标 [${target.name}] 不是外来者，正常被杀害。💀`;
+            setDraft(`方古选择杀害玩家 [${target.name}]，目标正常死亡。`);
+          }
+        }
+      };
+
+      targetSel.select.onchange = updateFG;
+      updateFG();
+
+      const originalSave = saveBtn.onclick;
+      saveBtn.onclick = () => {
+        const target = this.state.players[targetSel.select.value];
+        if (target) {
+          const isOutsider = target.roleData && target.roleData.type === 'outsider';
+          const isDrunkOrPoisoned = player && (player.drunk || player.poisoned);
+          
+          if (isOutsider && !this.state.fangguJumped && !isDrunkOrPoisoned) {
+            // Fang Gu Jump swap!
+            const oldOutsiderRole = target.role;
+            const oldOutsiderRoleData = target.roleData;
+
+            // Target becomes evil Fang Gu (demon)
+            target.role = 'fanggu';
+            target.roleData = this.findRoleData('fanggu');
+            target.poisoned = false;
+            
+            // Original Fang Gu dies
+            if (player) {
+              player.dead = true;
+              player.deathType = 'killed';
+              player.hasVoteToken = true;
+              player.poisoned = false;
+              player.safe = false;
+              if (player.role !== 'drunk') {
+                player.drunk = false;
+              }
+            }
+
+            this.state.fangguJumped = true;
+
+            this.addLog("说书人", `方古夺舍：方古 [${player ? player.name : '未知'}] 袭击了存活外来者 [${target.name}] (${oldOutsiderRoleData.name})！触发夺舍：[${target.name}] 转变为新的邪恶恶魔【方古】并继续存活，原方古 [${player ? player.name : '未知'}] 暴毙死亡！`);
+            
+            this.renderGrimoireCircle();
+            this.saveToLocalStorage();
+          } else {
+            // Normal kill
+            if (target.safe) {
+              alert(`【警示】: 目标玩家 [${target.name}] 受到僧侣/老板守护免死 🛡️，但如果您出于说书人权能强制杀害，可继续保存。`);
+            }
+            target.dead = true;
+            target.deathType = 'killed';
+            target.hasVoteToken = true;
+
+            // Clear temporary states on dead player
+            target.poisoned = false;
+            target.safe = false;
+            if (target.role !== 'drunk') {
+              target.drunk = false;
+            }
+
+            // If poisoner dies, remove poison
+            if (target.role === 'poisoner') {
+              this.state.players.forEach(otherP => {
+                if (otherP.poisoned) {
+                  otherP.poisoned = false;
+                  this.addLog("系统", `因下毒者 [${target.name}] 死亡，自动清除了 [${otherP.name}] 的中毒状态 🧪`);
+                }
+              });
+            }
+
+            this.addLog("说书人", `方古袭击：方古 [${player ? player.name : '未知'}] 袭击并杀害了玩家 [${target.name}] 💀`);
+            this.renderGrimoireCircle();
+            this.saveToLocalStorage();
+          }
+        }
+        originalSave();
+      };
+    }
+
+    // sweetheart
+    else if (wakingKey === 'sweetheart') {
+      const targetSel = this.createSTPlayerSelectorElement("选择永久醉酒的目标玩家:", false);
+      interactiveArea.appendChild(targetSel.row);
+      interactiveArea.appendChild(helperRow);
+
+      const updateSweetheartText = () => {
+        const target = this.state.players[targetSel.select.value];
+        const isDrunkOrPoisoned = player && (player.drunk || player.poisoned);
+        if (target) {
+          if (isDrunkOrPoisoned) {
+            helperRow.style.display = 'block';
+            helperRow.style.color = '#e67e22';
+            helperRow.style.background = 'rgba(230, 126, 34, 0.1)';
+            helperRow.style.border = '1px solid rgba(230, 126, 34, 0.2)';
+            helperRow.innerHTML = `🔍 智能提示: 心上人处于醉酒/中毒状态 🧪，临终能力失效，保存后不会产生实际醉酒效果。⚠️`;
+            setDraft(`心上人死亡，但由于其死亡时处于醉酒/中毒状态，能力失效，无事发生。`);
+          } else {
+            helperRow.style.display = 'block';
+            helperRow.style.color = '#2ecc71';
+            helperRow.style.background = 'rgba(46, 204, 113, 0.1)';
+            helperRow.style.border = '1px solid rgba(46, 204, 113, 0.2)';
+            helperRow.innerHTML = `🔍 智能提示: 保存后玩家 [${target.name}] 将永久处于【醉酒】状态。🟢`;
+            setDraft(`心碎临终怨念，选定玩家 [${target.name}] 从此永久处于醉酒状态 🍺`);
+          }
+        }
+      };
+
+      targetSel.select.onchange = updateSweetheartText;
+      updateSweetheartText();
+
+      const originalSave = saveBtn.onclick;
+      saveBtn.onclick = () => {
+        const target = this.state.players[targetSel.select.value];
+        const isDrunkOrPoisoned = player && (player.drunk || player.poisoned);
+        if (target) {
+          if (!isDrunkOrPoisoned) {
+            target.drunk = true;
+            this.addLog("说书人", `心上人死亡效果生效：[${target.name}] 被选定永久处于醉酒状态 🍺`);
+          } else {
+            this.addLog("说书人", `心上人死亡效果：因心上人处于醉酒/中毒状态，其临终能力失效。`);
+          }
+          if (player) {
+            player.abilityUsed = true;
+          }
+          this.renderGrimoireCircle();
+          this.saveToLocalStorage();
+        }
+        originalSave();
       };
     }
 
