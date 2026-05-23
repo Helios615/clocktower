@@ -323,6 +323,44 @@ class AppController {
   // 视图 2: 角色池勾选选择页逻辑 (Pool Selection View)
   // ==========================================
 
+  updatePuzzlemasterDrunkSelectOptions() {
+    const fakeSelect = document.getElementById('puzzlemaster-drunk-role-select');
+    if (!fakeSelect) return;
+
+    const currentVal = this.state.puzzlemasterDrunkRole;
+    fakeSelect.innerHTML = '';
+
+    // 可选的善良角色 (村民 + 外来者, 排除解谜大师自身)，且必须已被勾选在 pool 中
+    const selectedGoodRoles = [
+      ...this.getAvailableRolesList('townsfolk'),
+      ...this.getAvailableRolesList('outsider')
+    ].filter(r => r.key !== 'puzzlemaster' && this.state.pool.includes(r.key));
+
+    if (selectedGoodRoles.length > 0) {
+      selectedGoodRoles.forEach(tf => {
+        const opt = document.createElement('option');
+        opt.value = tf.key;
+        opt.innerText = tf.name;
+        fakeSelect.appendChild(opt);
+      });
+
+      // 尽量保留之前的选择，如果之前选择 of 依然有效；否则默认选第一个
+      if (currentVal && selectedGoodRoles.some(r => r.key === currentVal)) {
+        fakeSelect.value = currentVal;
+        this.state.puzzlemasterDrunkRole = currentVal;
+      } else {
+        fakeSelect.value = selectedGoodRoles[0].key;
+        this.state.puzzlemasterDrunkRole = selectedGoodRoles[0].key;
+      }
+    } else {
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.innerText = '请先勾选其他好人角色';
+      fakeSelect.appendChild(opt);
+      this.state.puzzlemasterDrunkRole = '';
+    }
+  }
+
   renderPoolSelectionView() {
     // 渲染各类别角色勾选框
     this.renderPoolCategoryGrid('townsfolk', 'pool-grid-townsfolk');
@@ -331,6 +369,8 @@ class AppController {
     this.renderPoolCategoryGrid('demon', 'pool-grid-demon');
 
     this.updatePoolStatusText();
+    // 动态初始化解谜大师可选角色下拉框
+    this.updatePuzzlemasterDrunkSelectOptions();
   }
 
   renderPoolCategoryGrid(type, gridId) {
@@ -421,13 +461,14 @@ class AppController {
         selectContainer.onclick = (e) => e.stopPropagation();
 
         const labelSpan = document.createElement('div');
-        labelSpan.innerText = '指定被醉酒善良玩家：';
+        labelSpan.innerText = '指定被醉酒善良角色：';
         labelSpan.style.fontSize = '0.7rem';
         labelSpan.style.color = 'hsl(var(--gold))';
         labelSpan.style.marginBottom = '4px';
         labelSpan.style.fontWeight = 'bold';
         
         const fakeSelect = document.createElement('select');
+        fakeSelect.id = 'puzzlemaster-drunk-role-select';
         fakeSelect.className = 'form-control';
         fakeSelect.style.fontSize = '0.75rem';
         fakeSelect.style.padding = '4px 8px';
@@ -438,20 +479,8 @@ class AppController {
         fakeSelect.style.color = '#fff';
         fakeSelect.style.borderRadius = '4px';
         
-        for (let i = 0; i < this.state.playerCount; i++) {
-          const opt = document.createElement('option');
-          opt.value = i;
-          opt.innerText = `${i + 1}号 [${this.state.playerNames[i] || `玩家${i + 1}`}]`;
-          fakeSelect.appendChild(opt);
-        }
-
-        if (this.state.puzzlemasterDrunkIndex === undefined) {
-          this.state.puzzlemasterDrunkIndex = 0;
-        }
-        fakeSelect.value = this.state.puzzlemasterDrunkIndex;
-
         fakeSelect.onchange = (e) => {
-          this.state.puzzlemasterDrunkIndex = parseInt(e.target.value);
+          this.state.puzzlemasterDrunkRole = e.target.value;
           this.saveToLocalStorage();
         };
 
@@ -530,6 +559,7 @@ class AppController {
           if (selectContainer) selectContainer.style.display = 'none';
         }
         this.updatePoolStatusText();
+        this.updatePuzzlemasterDrunkSelectOptions();
         this.saveToLocalStorage();
       };
 
@@ -677,9 +707,20 @@ class AppController {
       }
     }
 
-    // 如果随机勾选了解谜大师，确保随机指定一个被解谜大师醉酒的善良玩家索引
-    if (this.state.pool.includes('puzzlemaster') && this.state.puzzlemasterDrunkIndex === undefined) {
-      this.state.puzzlemasterDrunkIndex = Math.floor(Math.random() * this.state.playerCount);
+    // 如果随机勾选了解谜大师，确保从被勾选的善良角色中随机指定一个被解谜大师醉酒的角色
+    if (this.state.pool.includes('puzzlemaster')) {
+      const goodRolesInPool = [
+        ...this.getAvailableRolesList('townsfolk'),
+        ...this.getAvailableRolesList('outsider')
+      ].filter(r => r.key !== 'puzzlemaster' && this.state.pool.includes(r.key));
+      
+      if (goodRolesInPool.length > 0) {
+        if (!this.state.puzzlemasterDrunkRole || !goodRolesInPool.some(r => r.key === this.state.puzzlemasterDrunkRole)) {
+          this.state.puzzlemasterDrunkRole = goodRolesInPool[Math.floor(Math.random() * goodRolesInPool.length)].key;
+        }
+      } else {
+        this.state.puzzlemasterDrunkRole = '';
+      }
     }
 
     // 如果随机勾选了提线木偶，确保其有一个好人伪装角色
@@ -825,6 +866,23 @@ class AppController {
       }
     }
 
+    // 解谜大师首夜指定被醉酒角色校验：
+    // 如果解谜大师在场，我们检查指定的醉酒角色 puzzlemasterDrunkRole 是否在 finalShuffled 中。
+    // 如果没有指定，或者指定的角色恰好没有被分配到本局中，则从本局已分配的好人角色（Townsfolk/Outsider）中随机选一个作为实际生效的醉酒角色！
+    if (finalShuffled.includes('puzzlemaster')) {
+      let targetRole = this.state.puzzlemasterDrunkRole;
+      if (!targetRole || !finalShuffled.includes(targetRole)) {
+        const goodRolesInPlay = finalShuffled.filter(role => {
+          const rData = this.findRoleData(role);
+          return rData && ['townsfolk', 'outsider'].includes(rData.type) && role !== 'puzzlemaster';
+        });
+        if (goodRolesInPlay.length > 0) {
+          targetRole = goodRolesInPlay[Math.floor(Math.random() * goodRolesInPlay.length)];
+        }
+      }
+      this.state.puzzlemasterDrunkRole = targetRole;
+    }
+
     // 重置方古夺舍标记
     this.state.fangguJumped = false;
 
@@ -834,6 +892,7 @@ class AppController {
       const roleKey = finalShuffled[i];
       const charData = this.findRoleData(roleKey);
       const isDrunkRole = (roleKey === 'drunk');
+      const isPuzzlemasterDrunk = (roleKey === this.state.puzzlemasterDrunkRole) && finalShuffled.includes('puzzlemaster');
       
       this.state.players.push({
         index: i,
@@ -844,19 +903,12 @@ class AppController {
         deathType: null, // 死亡类型：null, 'killed', 'executed'
         hasVoteToken: true,
         poisoned: false,
-        drunk: isDrunkRole ? true : false, // 自动置为醉酒
+        drunk: (isDrunkRole || isPuzzlemasterDrunk) ? true : false, // 自动置为醉酒
         drunkRole: isDrunkRole ? (this.state.drunkRole || '') : undefined, // 继承说书人的指定伪装
         marionetteRole: (roleKey === 'marionette') ? (this.state.marionetteRole || '') : undefined, // 继承说书人的指定伪装
+        puzzlemasterDrunk: isPuzzlemasterDrunk ? true : undefined, // 额外做个解谜大师醉酒标记
         safe: false
       });
-    }
-    // 如果解谜大师在场，且指定了被醉酒善良玩家索引，将目标玩家置为醉酒状态并记录解谜大师醉酒标记
-    if (finalShuffled.includes('puzzlemaster') && this.state.puzzlemasterDrunkIndex !== undefined) {
-      const p = this.state.players[this.state.puzzlemasterDrunkIndex];
-      if (p) {
-        p.drunk = true;
-        p.puzzlemasterDrunk = true; // 额外做个解谜大师醉酒标记
-      }
     }
     this.saveToLocalStorage();
   }
@@ -1158,6 +1210,32 @@ class AppController {
       this.addLog("系统", `🚨 <strong>说书人警示</strong>: 玩家 [${drunkPlayer.name}] (座位 ${drunkPlayer.index + 1}) 的真实角色为【酒鬼】，他以为自己是村民【${fakeName}】。`);
     }
 
+    // 解谜大师说书人提醒机制：检测是否有玩家因解谜大师技能处于“解谜大师醉酒”状态
+    const pmDrunkPlayer = this.state.players.find(p => p.puzzlemasterDrunk);
+    if (pmDrunkPlayer) {
+      const pmDrunkRoleChar = pmDrunkPlayer.roleData;
+      const pmDrunkRoleName = pmDrunkRoleChar ? pmDrunkRoleChar.name : pmDrunkPlayer.role;
+      
+      setTimeout(() => {
+        alert(`【🚨 说书人重要警示 - 解谜大师醉酒已配置】\n\n本局游戏中有玩家因【解谜大师】技能处于【醉酒】状态！\n\n👤 玩家名称: ${pmDrunkPlayer.name} (座位号 ${pmDrunkPlayer.index + 1})\n🎭 真实身份: ${pmDrunkRoleName}\n\n该玩家刚才在看牌或扫码时【只知道自己是真实角色，完全不知道自己已醉酒】！\n\n说书人重要提示：\n1. 他不知道自己已醉酒，他以为自己是正常的村民/外来者；\n2. 他的所有技能都失效，你需要向其提供完全【虚假/错误】的信息；\n3. 他的醉酒状态已在您的魔典中以【🍺 醉酒】徽章高亮标记出来。`);
+      }, (lunaticPlayer && drunkPlayer) ? 1300 : (lunaticPlayer || drunkPlayer) ? 800 : 300);
+      
+      this.addLog("系统", `🚨 <strong>说书人警示</strong>: 玩家 [${pmDrunkPlayer.name}] (座位 ${pmDrunkPlayer.index + 1}) 的真实角色为【${pmDrunkRoleName}】，他因解谜大师能力处于【醉酒】状态，其技能已失效，但看牌时完全不知情。`);
+    }
+
+    // 提线木偶说书人提醒机制：检测是否有玩家分配到“提线木偶”身份，如果有则提示说书人其真身与伪装身份
+    const marionettePlayer = this.state.players.find(p => p.role === 'marionette');
+    if (marionettePlayer && marionettePlayer.marionetteRole) {
+      const fakeChar = this.findRoleData(marionettePlayer.marionetteRole);
+      const fakeName = fakeChar ? fakeChar.name : marionettePlayer.marionetteRole;
+      
+      setTimeout(() => {
+        alert(`【🚨 说书人重要警示 - 提线木偶已配置】\n\n本局游戏中有玩家分配到了【提线木偶】(Marionette) 角色！\n\n👤 玩家名称: ${marionettePlayer.name} (座位号 ${marionettePlayer.index + 1})\n🎭 伪装好人: ${fakeName}\n\n该玩家刚才在看牌时被告知他是【${fakeName}】。\n\n说书人重要提示：\n1. 他不知道自己是提线木偶，他以为自己是【${fakeName}】并且是善良阵营；\n2. 他的技能失效（如果他以为的那个角色有技能的话），你需要按照【${fakeName}】的醒来顺序唤醒他，并向他提供【虚假/错误】的信息；\n3. 他的座位必须在恶魔的隔壁（物理邻居，本助手在发牌时已自动调整）。`);
+      }, (lunaticPlayer && drunkPlayer && pmDrunkPlayer) ? 1800 : (lunaticPlayer || drunkPlayer || pmDrunkPlayer) ? 1200 : 300);
+      
+      this.addLog("系统", `🚨 <strong>说书人警示</strong>: 玩家 [${marionettePlayer.name}] (座位 ${marionettePlayer.index + 1}) 的真实角色为【提线木偶】，他以为自己是好人【${fakeName}】。其座位必须与恶魔相邻。`);
+    }
+
     // 切到魔典界面
     this.switchView('grim-view');
   }
@@ -1219,6 +1297,9 @@ class AppController {
       if (p.role === 'drunk' && p.drunkRole) {
         const fakeChar = this.findRoleData(p.drunkRole);
         rName.innerText = `${p.roleData.name} (${fakeChar ? fakeChar.name : p.drunkRole})`;
+      } else if (p.role === 'marionette' && p.marionetteRole) {
+        const fakeChar = this.findRoleData(p.marionetteRole);
+        rName.innerText = `${p.roleData.name} (伪装: ${fakeChar ? fakeChar.name : p.marionetteRole})`;
       } else {
         rName.innerText = p.roleData.name;
       }

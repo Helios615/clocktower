@@ -654,13 +654,12 @@ const ROLES_DATA = {
         ability: "每个游戏一次，在白天，你可以单独向说书人提出任何可以回答【是】、【否】或【不知道】的问题，并获得真实回答。",
         abilityType: "passive"
       },
-      huntsman: {
-        name: "猎手 (Huntsman)",
-        en: "Huntsman",
+      slayer: {
+        name: "猎人",
+        en: "Slayer",
         type: "townsfolk",
-        ability: "每个游戏一次，在夜晚，选择一名玩家：如果他是女爵，他变成存活的村民（即使你已经死亡/无能力）。（由于本局无女爵，该技能通常无实际效果，但可作为伪装）",
-        wakeOther: "您可以选择一名玩家寻找女爵（本局无女爵，将无事发生）。标记能力【已使用】。",
-        otherNight: 112
+        ability: "每个游戏一次，在白天，你可以公开选择一名玩家：如果他是恶魔，他死亡。",
+        abilityType: "passive"
       },
       cannibal: {
         name: "食人族",
@@ -807,7 +806,6 @@ const MASTER_NIGHT_ORDER = {
     
     // 物理击杀/刺客/教父/驱魔
     subassassin: 110,
-    huntsman: 112,
     godfather: 115,
     exorcist: 120,
     lunatic: 125, // Add Lunatic (疯子) here
