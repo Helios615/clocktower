@@ -2068,10 +2068,48 @@ class AppController {
     document.getElementById('night-guide-modal').classList.add('active');
   }
 
+  backupPlayersState() {
+    this.nightStepPlayersBackup = this.state.players.map(p => ({
+      ...p,
+      roleData: p.roleData ? { ...p.roleData } : null
+    }));
+    this.fangguJumpedBackup = this.state.fangguJumped;
+  }
+
+  restorePlayersFromBackup() {
+    if (!this.nightStepPlayersBackup) return;
+    this.state.players.forEach((p, idx) => {
+      const backup = this.nightStepPlayersBackup[idx];
+      if (backup) {
+        p.dead = backup.dead;
+        p.deathType = backup.deathType;
+        p.hasVoteToken = backup.hasVoteToken;
+        p.poisoned = backup.poisoned;
+        p.safe = backup.safe;
+        p.drunk = backup.drunk;
+        p.role = backup.role;
+        p.roleData = backup.roleData ? { ...backup.roleData } : null;
+        if (backup.drunkRole !== undefined) {
+          p.drunkRole = backup.drunkRole;
+        } else {
+          delete p.drunkRole;
+        }
+        if (backup.marionetteRole !== undefined) {
+          p.marionetteRole = backup.marionetteRole;
+        } else {
+          delete p.marionetteRole;
+        }
+      }
+    });
+    this.state.fangguJumped = this.fangguJumpedBackup;
+  }
+
   renderNightStep() {
     const guide = this.state.nightGuide;
     const step = guide.steps[guide.currentIndex];
     if (!step) return;
+
+    this.backupPlayersState();
 
     // 更新索引标题
     document.getElementById('night-step-index-text').innerText = `步骤 ${guide.currentIndex + 1} / ${guide.steps.length}`;
@@ -2788,6 +2826,7 @@ class AppController {
 
       const originalSave = saveBtn.onclick;
       saveBtn.onclick = () => {
+        this.restorePlayersFromBackup();
         const target = this.state.players[targetSel.select.value];
         if (target) {
           const oldRoleCN = target.roleData ? target.roleData.name : target.role;
@@ -2799,6 +2838,11 @@ class AppController {
           if (player) {
             player.abilityUsed = true;
           }
+          this.renderGrimoireCircle();
+          this.saveToLocalStorage();
+        } else {
+          this.renderGrimoireCircle();
+          this.saveToLocalStorage();
         }
         originalSave();
       };
@@ -2847,6 +2891,7 @@ class AppController {
 
       const originalSave = saveBtn.onclick;
       saveBtn.onclick = () => {
+        this.restorePlayersFromBackup();
         const target = this.state.players[targetSel.select.value];
         if (target) {
           const isDemon = target.roleData && target.roleData.type === 'demon';
@@ -2873,6 +2918,9 @@ class AppController {
             this.renderGrimoireCircle();
             this.saveToLocalStorage();
           }
+        } else {
+          this.renderGrimoireCircle();
+          this.saveToLocalStorage();
         }
         originalSave();
       };
@@ -2929,6 +2977,7 @@ class AppController {
 
       const originalSave = saveBtn.onclick;
       saveBtn.onclick = () => {
+        this.restorePlayersFromBackup();
         const target = this.state.players[targetSel.select.value];
         if (target) {
           const isOutsider = target.roleData && target.roleData.type === 'outsider';
@@ -2992,6 +3041,9 @@ class AppController {
             this.renderGrimoireCircle();
             this.saveToLocalStorage();
           }
+        } else {
+          this.renderGrimoireCircle();
+          this.saveToLocalStorage();
         }
         originalSave();
       };
@@ -3030,6 +3082,7 @@ class AppController {
 
       const originalSave = saveBtn.onclick;
       saveBtn.onclick = () => {
+        this.restorePlayersFromBackup();
         const target = this.state.players[targetSel.select.value];
         const isDrunkOrPoisoned = player && (player.drunk || player.poisoned);
         if (target) {
@@ -3044,6 +3097,9 @@ class AppController {
           }
           this.renderGrimoireCircle();
           this.saveToLocalStorage();
+        } else {
+          this.renderGrimoireCircle();
+          this.saveToLocalStorage();
         }
         originalSave();
       };
@@ -3055,6 +3111,7 @@ class AppController {
       interactiveArea.appendChild(sel.row);
 
       sel.select.onchange = (e) => {
+        this.restorePlayersFromBackup();
         const val = e.target.value;
         const target = this.state.players[val];
         if (target) {
@@ -3065,6 +3122,10 @@ class AppController {
           this.saveToLocalStorage();
           
           setDraft(`对玩家 [${target.name}] 施加毒药 🧪`);
+        } else {
+          setDraft("");
+          this.renderGrimoireCircle();
+          this.saveToLocalStorage();
         }
       };
     }
@@ -3075,6 +3136,7 @@ class AppController {
       interactiveArea.appendChild(sel.row);
 
       sel.select.onchange = (e) => {
+        this.restorePlayersFromBackup();
         const val = e.target.value;
         const target = this.state.players[val];
         if (target) {
@@ -3083,6 +3145,10 @@ class AppController {
           this.saveToLocalStorage();
 
           setDraft(`为玩家 [${target.name}] 提供圣盾保护，今晚免受恶魔袭击 🛡️`);
+        } else {
+          setDraft("");
+          this.renderGrimoireCircle();
+          this.saveToLocalStorage();
         }
       };
     }
@@ -3096,6 +3162,7 @@ class AppController {
       interactiveArea.appendChild(drinkResultSel.row);
 
       const updateSailorText = () => {
+        this.restorePlayersFromBackup();
         const target = this.state.players[sel.select.value];
         const res = drinkResultSel.select.value;
         if (target) {
@@ -3113,6 +3180,10 @@ class AppController {
           this.saveToLocalStorage();
 
           setDraft(`与存活玩家 [${target.name}] 拼酒。拼酒结果为: ${res}`);
+        } else {
+          setDraft("");
+          this.renderGrimoireCircle();
+          this.saveToLocalStorage();
         }
       };
 
@@ -3148,6 +3219,7 @@ class AppController {
       interactiveArea.appendChild(sel.row);
 
       sel.select.onchange = (e) => {
+        this.restorePlayersFromBackup();
         const val = e.target.value;
         const target = this.state.players[val];
         if (target) {
@@ -3179,6 +3251,10 @@ class AppController {
           this.saveToLocalStorage();
 
           setDraft(isAssassin ? `刺客发动必死刺杀，残忍杀害了玩家 [${target.name}] 💀` : `恶魔发动夜间袭击，杀害了存活玩家 [${target.name}] 💀`);
+        } else {
+          setDraft("");
+          this.renderGrimoireCircle();
+          this.saveToLocalStorage();
         }
       };
     }
