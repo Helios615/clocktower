@@ -522,18 +522,18 @@ const ROLES_DATA = {
       },
       // 外来者
       mutant: {
-        name: "畸形人",
+        name: "畸形秀演员",
         en: "Mutant",
         type: "outsider",
         ability: "如果你mad地（疯狂地）坚称自己是外来者，你可能会被说书人当场处决死亡。",
         abilityType: "passive"
       },
       sweetheart: {
-        name: "心碎者",
+        name: "心上人",
         en: "Sweetheart",
         type: "outsider",
         ability: "当你死亡时，说书人会选择一名玩家：该玩家从现在起永久处于醉酒状态。",
-        wakeOther: "如果心碎者今天死亡：说书人秘密挑选一名玩家，打上永久【醉酒】标记。",
+        wakeOther: "如果心上人今天死亡：说书人秘密挑选一名玩家，打上永久【醉酒】标记。",
         otherNight: 160
       },
       barber: {
@@ -545,7 +545,7 @@ const ROLES_DATA = {
         otherNight: 150
       },
       klutz: {
-        name: "笨手笨脚",
+        name: "傻瓜",
         en: "Klutz",
         type: "outsider",
         ability: "当你得知你死亡时，你必须公开指向一名存活玩家：如果此人是邪恶的，善良阵营直接输掉本局游戏。",
@@ -557,7 +557,7 @@ const ROLES_DATA = {
         en: "Evil Twin",
         type: "minion",
         ability: "你和一名特定的善良玩家彼此得知。只要你们两人都存活，善良阵营便无法通过处死恶魔获胜，必须处决双子中的善良方，否则恶魔死后依然是邪恶获胜。",
-        wakeFirst: "展示善良双子和邪恶双子互相确认身份，并展示标志告诉他们【这就是你的双子对头】。",
+        wakeFirst: "展示善良双子 and 邪恶双子互相确认身份，并展示标志告诉他们【这就是你的双子对头】。",
         firstNight: 10
       },
       witch: {
@@ -581,7 +581,7 @@ const ROLES_DATA = {
         otherNight: 80
       },
       pithag: {
-        name: "深渊巫婆",
+        name: "熬药巫婆",
         en: "Pit-Hag",
         type: "minion",
         ability: "每个夜晚*，选择一名玩家和一个角色：该玩家转换变成该角色。如果本场原本不存在该角色且变成了恶魔，今晚恶魔无法产生击杀且由说书人指派新的恶魔类型。",
@@ -590,15 +590,15 @@ const ROLES_DATA = {
       },
       // 恶魔
       fanggu: {
-        name: "方辜",
+        name: "蚀梦游魂",
         en: "Fang Gu",
         type: "demon",
-        ability: "每个夜晚*，选择一名玩家：他死亡。你首次选择杀害一名善良外来者时，他变成邪恶阵营的方辜恶魔，而你（原方辜）死亡。",
-        wakeOther: "选择一名玩家杀害。如果是善良外来者且首次触发，将其角色转化为【邪恶方辜】，原方辜死亡宣告，新方辜在夜间醒来并被告知恶魔身份。",
+        ability: "每个夜晚*，选择一名玩家：他死亡。你首次选择杀害一名善良外来者时，他变成邪恶阵营的蚀梦游魂恶魔，而你（原蚀梦游魂）死亡。",
+        wakeOther: "选择一名玩家杀害。如果是善良外来者且首次触发，将其角色转化为【邪恶蚀梦游魂】，原蚀梦游魂死亡宣告，新蚀梦游魂在夜间醒来并被告知恶魔身份。",
         otherNight: 130
       },
       vigormortis: {
-        name: "枯骨魔",
+        name: "死灵法师",
         en: "Vigormortis",
         type: "demon",
         ability: "每个夜晚*，选择一名玩家：他死亡。你通过恶魔袭击杀死的一名爪牙邻座虽然注册为已死亡，但可以保留并继续行使他的爪牙夜间苏醒能力，但他在夜里在你的魔典中被视为中毒运作。",
@@ -606,15 +606,15 @@ const ROLES_DATA = {
         otherNight: 130
       },
       nodashii: {
-        name: "无面魔",
+        name: "腐肢",
         en: "No Dashii",
         type: "demon",
         ability: "每个夜晚*，选择一名玩家：他死亡。你相邻的两名存活村民在魔典里处于永久中毒状态（即便他们没有意识到，他们的信息为假）。",
-        wakeOther: "选择一名玩家杀害。动态更新无面魔左右两侧最近的存活村民的【中毒】状态。",
+        wakeOther: "选择一名玩家杀害。动态更新腐肢左右两侧最近 of 存活村民的【中毒】状态。",
         otherNight: 130
       },
       vortox: {
-        name: "漩涡魔",
+        name: "混乱风暴",
         en: "Vortox",
         type: "demon",
         ability: "每个夜晚*，选择一名玩家：他死亡。所有善良玩家的感知和获得情报能力产生的信息必须为【假】。在每个白天，如果没有任何玩家被成功处决，邪恶阵营直接赢得胜利。",
