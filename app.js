@@ -29,7 +29,8 @@ class AppController {
       currentNightRecord: {},    // 当晚玩家行动与获得信息临时记录
       fortuneTellerRedHerring: "", // 占卜师宿敌 (红鲱鱼) 玩家索引
       nightRecords: {},             // 历夜说书人备忘历史记录
-      fangguJumped: false          // 方古是否已经触发过外来者夺舍夺命变恶魔
+      fangguJumped: false,          // 方古是否已经触发过外来者夺舍夺命变恶魔
+      godfatherModifier: 1          // 教父外来者变更偏好 (1 为 +1, -1 为 -1)
     };
 
     // 2. 状态映射配置 (标准人数身份分配)
@@ -187,6 +188,8 @@ class AppController {
     scriptSelect.value = this.state.script;
     scriptSelect.onchange = (e) => {
       this.state.script = e.target.value;
+      this.state.pool = []; // 切换剧本时，自动重置角色池以防污染
+      this.updateDistributionBadges(); // 重新计算分发席位
       this.saveToLocalStorage();
     };
 
@@ -245,6 +248,16 @@ class AppController {
     if (this.state.pool && this.state.pool.includes('fanggu')) {
       rules.townsfolk = Math.max(0, rules.townsfolk - 1);
       rules.outsider = rules.outsider + 1;
+    }
+    if (this.state.pool && this.state.pool.includes('godfather')) {
+      const mod = this.state.godfatherModifier !== undefined ? this.state.godfatherModifier : 1;
+      if (mod === 1) {
+        rules.townsfolk = Math.max(0, rules.townsfolk - 1);
+        rules.outsider = rules.outsider + 1;
+      } else if (mod === -1) {
+        rules.townsfolk = rules.townsfolk + 1;
+        rules.outsider = Math.max(0, rules.outsider - 1);
+      }
     }
     return rules;
   }
@@ -581,9 +594,46 @@ class AppController {
 
       info.appendChild(nameSpan);
       info.appendChild(scriptSpan);
+
+      // 单独的角色说明 ⓘ 按钮，点击不切换勾选状态，而是弹窗角色说明
+      const infoBtn = document.createElement('div');
+      infoBtn.className = 'role-checkbox-info-btn';
+      infoBtn.innerText = 'ⓘ';
+      infoBtn.style.marginLeft = 'auto';
+      infoBtn.style.cursor = 'pointer';
+      infoBtn.style.fontSize = '0.75rem';
+      infoBtn.style.color = 'hsla(var(--gold), 0.5)';
+      infoBtn.style.width = '20px';
+      infoBtn.style.height = '20px';
+      infoBtn.style.borderRadius = '50%';
+      infoBtn.style.display = 'flex';
+      infoBtn.style.alignItems = 'center';
+      infoBtn.style.justifyContent = 'center';
+      infoBtn.style.border = '1px solid hsla(var(--gold), 0.2)';
+      infoBtn.style.zIndex = '5';
+      infoBtn.style.transition = 'all 0.15s ease';
+
+      infoBtn.onmouseover = () => {
+        infoBtn.style.color = 'hsl(var(--gold))';
+        infoBtn.style.border = '1px solid hsl(var(--gold))';
+        infoBtn.style.background = 'rgba(212, 175, 55, 0.15)';
+      };
+      infoBtn.onmouseout = () => {
+        infoBtn.style.color = 'hsla(var(--gold), 0.5)';
+        infoBtn.style.border = '1px solid hsla(var(--gold), 0.2)';
+        infoBtn.style.background = 'transparent';
+      };
+
+      infoBtn.onclick = (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        this.openSingleRoleModal(item.key);
+      };
+
       label.appendChild(checkbox);
       label.appendChild(avatar);
       label.appendChild(info);
+      label.appendChild(infoBtn);
       if (selectContainer) {
         label.appendChild(selectContainer);
       }
@@ -661,6 +711,28 @@ class AppController {
       nextBtn.setAttribute('disabled', 'true');
       badge.style.color = 'hsl(var(--text-muted))';
     }
+
+    // 动态控制教父外来者变更 UI
+    const gfContainer = document.getElementById('godfather-modifier-container');
+    if (gfContainer) {
+      if (this.state.pool && this.state.pool.includes('godfather')) {
+        gfContainer.style.display = 'flex';
+        const mod = this.state.godfatherModifier !== undefined ? this.state.godfatherModifier : 1;
+        const radios = document.getElementsByName('godfather-mod');
+        for (let r of radios) {
+          if (r.value === 'plus' && mod === 1) r.checked = true;
+          if (r.value === 'minus' && mod === -1) r.checked = true;
+        }
+      } else {
+        gfContainer.style.display = 'none';
+      }
+    }
+  }
+
+  setGodfatherModifier(val) {
+    this.state.godfatherModifier = val;
+    this.updatePoolStatusText();
+    this.saveToLocalStorage();
   }
 
   clearPoolSelection() {
@@ -769,17 +841,16 @@ class AppController {
     if (poolOutsider.length < rules.outsider) {
       const hasBaron = this.state.pool.includes('baron');
       const hasFanggu = this.state.pool.includes('fanggu');
-      let tip = '';
-      if (hasBaron && hasFanggu) {
-        tip = '已勾选【男爵】和【方古】，外来者席位已增加 3 个';
-      } else if (hasBaron) {
-        tip = '已勾选【男爵】，外来者席位已增加 2 个';
-      } else if (hasFanggu) {
-        tip = '已勾选【方古】，外来者席位已增加 1 个';
-      } else {
-        tip = '未勾选【男爵】或【方古】';
+      const hasGodfather = this.state.pool.includes('godfather');
+      let tips = [];
+      if (hasBaron) tips.push('已选男爵 (外来者+2)');
+      if (hasFanggu) tips.push('已选蚀梦游魂 (外来者+1)');
+      if (hasGodfather) {
+        const mod = this.state.godfatherModifier !== undefined ? this.state.godfatherModifier : 1;
+        tips.push(`已选教父 (外来者${mod > 0 ? '+1' : '-1'})`);
       }
-      alert(`【角色结构不合规】\n\n本局需要至少 ${rules.outsider} 个外来者，但您仅勾选了 ${poolOutsider.length} 个外来者角色！\n\n提示：当前检测到${tip}。请在外来者池中多勾选角色。`);
+      let tip = tips.length > 0 ? `当前配置了：${tips.join('，')}，已重新计算外来者席位` : '未勾选任何修改外来者配置的角色';
+      alert(`【角色结构不合规】\n\n本局需要至少 ${rules.outsider} 个外来者，但您仅勾选了 ${poolOutsider.length} 个外来者角色！\n\n提示：${tip}。请在外来者池中多勾选角色。`);
       return;
     }
     if (poolMinion.length < rules.minion) {
@@ -794,9 +865,9 @@ class AppController {
     // 3. 严格的外来者上限校验：防止多选外来者破坏游戏平衡
     if (poolOutsider.length > rules.outsider) {
       if (rules.outsider === 0) {
-        alert(`【角色结构不合规】\n\n当前人数配置不需要任何【外来者】。但您在池中勾选了 ${poolOutsider.length} 个外来者角色！\n\n若想加入外来者，请在爪牙池中勾选【男爵】（Baron）或在恶魔池中勾选【方古】（Fang Gu）。`);
+        alert(`【角色结构不合规】\n\n当前人数配置不需要任何【外来者】。但您在池中勾选了 ${poolOutsider.length} 个外来者角色！\n\n若想加入外来者，请在爪牙池中勾选【男爵】（Baron）、【教父】（Godfather）或在恶魔池中勾选【蚀梦游魂】（Fang Gu）。`);
       } else {
-        alert(`【角色结构不合规】\n\n本局限制最多只能有 ${rules.outsider} 个【外来者】。但您在池中勾选了 ${poolOutsider.length} 个外来者角色！\n\n请在下方外来者列表中取消多余的外来者勾选，或者勾选【男爵】（Baron）/【方古】（Fang Gu）来增加外来者席位。`);
+        alert(`【角色结构不合规】\n\n本局限制最多只能有 ${rules.outsider} 个【外来者】。但您在池中勾选了 ${poolOutsider.length} 个外来者角色！\n\n请在下方外来者列表中取消多余的外来者勾选，或者在爪牙/恶魔池中勾选【男爵】/【蚀梦游魂】/【教父】来增加外来者席位。`);
       }
       return;
     }
@@ -1782,6 +1853,7 @@ class AppController {
     
     const idx = this.currentEditingPlayerIndex;
     const p = this.state.players[idx];
+    const wasAlive = !p.dead;
 
     const newName = document.getElementById('edit-player-name-field').value.trim();
     const newRole = document.getElementById('edit-player-role-field').value;
@@ -1845,19 +1917,58 @@ class AppController {
       }
     }
 
-    if (p.dead !== dead) {
-      changes.push(dead ? `进入了棺木 (因[${deathType === 'executed' ? '处决 🪓' : '被杀 💀'}]死亡)` : "从墓地中复活 (存活)");
-      p.dead = dead;
-      p.deathType = dead ? deathType : null;
-      if (dead) p.hasVoteToken = true; // 死亡默认给予未使用投票标记
-    } else if (dead) {
+    let finalDead = dead;
+    let finalDeathType = deathType;
+
+    if (p.dead !== dead && dead) {
+      // 试图让玩家死亡
+      // 1. 检查茶水女免死保护
+      const isTeaLadyProtected = this.isProtectedByTeaLady(p.index);
+      if (isTeaLadyProtected) {
+        if (!confirm(`【⚠️ 茶水女免死结界保护】\n\n玩家 [${p.name}] 正受到存活的、未醉酒中毒的【茶水女】结界保护（其左右存活邻居皆为善良阵营）！\n\n正常规则下他【无法死亡】。\n是否依然要出于说书人权能强行处死？`)) {
+          finalDead = false;
+          finalDeathType = null;
+        }
+      }
+
+      // 2. 检查弄臣免死
+      if (finalDead && p.role === 'fool') {
+        const isDrunkOrPoisoned = p.drunk || p.poisoned;
+        if (!isDrunkOrPoisoned) {
+          if (!p.foolLifeUsed) {
+            alert(`【🎭 弄臣首次死亡免死】\n\n玩家 [${p.name}] (弄臣) 首次面临死亡，且未处于醉酒或中毒状态！\n\n系统已自动触发其免死金牌：本次死亡被免除，扣除一次免死次数，继续保持存活！`);
+            p.foolLifeUsed = true;
+            finalDead = false;
+            finalDeathType = null;
+            this.addLog("说书人", `弄臣 [${p.name}] 触发首次死亡免死：消耗免死金牌，本局继续存活！`);
+          } else {
+            alert(`【⚠️ 弄臣警告】\n\n玩家 [${p.name}] (弄臣) 之前已经消耗过免死金牌，今日/今晚将正常死亡！`);
+          }
+        } else {
+          alert(`【🚨 弄臣失效警告】\n\n玩家 [${p.name}] (弄臣) 当前处于【醉酒/中毒】状态，其免死技能失效，将被正常处死！`);
+        }
+      }
+    }
+
+    if (p.dead !== finalDead) {
+      changes.push(finalDead ? `进入了棺木 (因[${finalDeathType === 'executed' ? '处决 🪓' : '被杀 💀'}]死亡)` : "从墓地中复活 (存活)");
+      p.dead = finalDead;
+      p.deathType = finalDead ? finalDeathType : null;
+      p.deathDay = finalDead ? this.state.dayNumber : null;
+      p.deathPhase = finalDead ? this.state.phase : null;
+      if (finalDead) p.hasVoteToken = true; // 死亡默认给予未使用投票标记
+    } else if (finalDead) {
       // 状态没变，但在死亡状态下修改了死亡类型
-      if (p.deathType !== deathType) {
-        changes.push(`死亡类型变更为 [${deathType === 'executed' ? '处决 🪓' : '被杀 💀'}]`);
-        p.deathType = deathType;
+      if (p.deathType !== finalDeathType) {
+        changes.push(`死亡类型变更为 [${finalDeathType === 'executed' ? '处决 🪓' : '被杀 💀'}]`);
+        p.deathType = finalDeathType;
+        p.deathDay = this.state.dayNumber;
+        p.deathPhase = this.state.phase;
       }
     } else {
       p.deathType = null;
+      p.deathDay = null;
+      p.deathPhase = null;
     }
 
     // 死亡时的状态自动清洗规则
@@ -1912,6 +2023,139 @@ class AppController {
     this.closePlayerEditModal();
     this.renderGrimoireCircle();
     this.saveToLocalStorage();
+
+    // 检查死亡的角色是否是心上人
+    let actualRole = p.role;
+    if (p.role === 'drunk' && p.drunkRole) {
+      actualRole = p.drunkRole;
+    }
+    const isSweetheart = (actualRole === 'sweetheart');
+    
+    if (wasAlive && dead && isSweetheart && !p.abilityUsed) {
+      this.triggerSweetheartDeathDrunk(p);
+    }
+  }
+
+  triggerSweetheartDeathDrunk(sweetheartPlayer) {
+    const isDrunkOrPoisoned = sweetheartPlayer.drunk || sweetheartPlayer.poisoned;
+    if (isDrunkOrPoisoned) {
+      alert(`💔 智能提示: 【心上人】在死亡时处于 醉酒/中毒 状态 🧪，其临终能力失效，无法触发醉酒。`);
+      this.addLog("说书人", `心上人死亡效果：因心上人死亡时处于醉酒/中毒状态，其临终能力失效，无事发生。`);
+      sweetheartPlayer.abilityUsed = true;
+      this.saveToLocalStorage();
+      return;
+    }
+
+    // 创建全屏遮罩
+    const overlay = document.createElement('div');
+    overlay.style.position = 'fixed';
+    overlay.style.top = '0';
+    overlay.style.left = '0';
+    overlay.style.width = '100vw';
+    overlay.style.height = '100vh';
+    overlay.style.background = 'rgba(0, 0, 0, 0.85)';
+    overlay.style.zIndex = '9999';
+    overlay.style.display = 'flex';
+    overlay.style.alignItems = 'center';
+    overlay.style.justifyContent = 'center';
+    
+    // 创建卡片
+    const card = document.createElement('div');
+    card.className = 'glass-card';
+    card.style.width = '90vw';
+    card.style.maxWidth = '400px';
+    card.style.padding = '20px';
+    card.style.borderRadius = '12px';
+    card.style.border = '1px solid hsla(var(--gold), 0.3)';
+    card.style.boxShadow = '0 8px 32px rgba(0, 0, 0, 0.5)';
+    card.style.display = 'flex';
+    card.style.flexDirection = 'column';
+    card.style.gap = '15px';
+    
+    // 标题
+    const title = document.createElement('h3');
+    title.innerText = '💔 心上人临终怨念 (能力触发)';
+    title.style.margin = '0';
+    title.style.color = 'hsl(var(--gold))';
+    title.style.fontFamily = 'var(--font-title)';
+    title.style.fontSize = '1.2rem';
+    
+    // 描述
+    const desc = document.createElement('p');
+    desc.innerText = `心上人 [${sweetheartPlayer.name}] 已经死亡！请说书人实时选择一名存活玩家使其永久处于【醉酒】状态：`;
+    desc.style.margin = '0';
+    desc.style.fontSize = '0.85rem';
+    desc.style.color = 'hsl(var(--text-muted))';
+    
+    // 下拉框
+    const select = document.createElement('select');
+    select.className = 'form-control';
+    select.style.width = '100%';
+    select.style.padding = '8px';
+    select.style.background = 'rgba(0, 0, 0, 0.5)';
+    select.style.color = '#fff';
+    select.style.border = '1px solid rgba(255,255,255,0.1)';
+    select.style.borderRadius = '6px';
+    
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.innerText = '-- 请选择存活玩家 --';
+    select.appendChild(placeholder);
+    
+    this.state.players.forEach(p => {
+      if (!p.dead) {
+        const opt = document.createElement('option');
+        opt.value = p.index;
+        opt.innerText = `${p.index + 1}号: ${p.name} [${p.roleData?.name || p.role}]`;
+        select.appendChild(opt);
+      }
+    });
+    
+    // 确认按钮
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-primary';
+    btn.innerText = '💾 确认并对该玩家施加永久醉酒';
+    btn.style.width = '100%';
+    btn.disabled = true;
+    
+    select.onchange = () => {
+      btn.disabled = !select.value;
+    };
+    
+    btn.onclick = () => {
+      const val = select.value;
+      const target = this.state.players[val];
+      if (target) {
+        target.drunk = true;
+        this.addLog("说书人", `心上人死亡效果生效：[${target.name}] 被选定永久处于醉酒状态 🍺`);
+        sweetheartPlayer.abilityUsed = true;
+        this.renderGrimoireCircle();
+        this.saveToLocalStorage();
+      }
+      overlay.remove();
+    };
+    
+    // 跳过/取消按钮
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'btn btn-secondary';
+    cancelBtn.innerText = '❌ 技能失效 / 跳过不触发';
+    cancelBtn.style.width = '100%';
+    cancelBtn.style.marginTop = '-5px';
+    
+    cancelBtn.onclick = () => {
+      sweetheartPlayer.abilityUsed = true;
+      this.addLog("说书人", `心上人死亡效果：说书人选择跳过或不触发临终醉酒效果。`);
+      this.saveToLocalStorage();
+      overlay.remove();
+    };
+    
+    card.appendChild(title);
+    card.appendChild(desc);
+    card.appendChild(select);
+    card.appendChild(btn);
+    card.appendChild(cancelBtn);
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
   }
 
   // ==========================================
@@ -2146,6 +2390,44 @@ class AppController {
     return ['minion', 'demon'].includes(player.roleData.type);
   }
 
+  didAnyOutsiderDieToday() {
+    return this.state.players.some(p => {
+      if (!p.dead) return false;
+      // 检查死亡天数是否是今天
+      if (p.deathDay !== this.state.dayNumber) return false;
+      
+      // 检查死亡阶段是否是白天，或者死亡类型是处决
+      const diedInDaytime = (p.deathPhase === 'day' || p.deathType === 'executed');
+      if (!diedInDaytime) return false;
+
+      // 检查角色是否是外来者
+      const charData = this.findRoleData(p.role);
+      return charData && charData.type === 'outsider';
+    });
+  }
+
+  isProtectedByTeaLady(playerIndex) {
+    // 找出场上所有存活、未醉酒、未中毒的茶水女 (tealady)
+    const teaLadies = this.state.players.filter(p => p.role === 'tealady' && !p.dead && !p.poisoned && !p.drunk);
+    if (teaLadies.length === 0) return false;
+
+    // 对每一个这样的茶水女，检查其左右存活邻居
+    return teaLadies.some(tl => {
+      const neighbors = this.getLivingNeighbors(tl.index);
+      if (!neighbors.left || !neighbors.right) return false;
+      
+      // 左右邻居必须都是善良阵营
+      const leftGood = neighbors.left.roleData && (neighbors.left.roleData.type === 'townsfolk' || neighbors.left.roleData.type === 'outsider');
+      const rightGood = neighbors.right.roleData && (neighbors.right.roleData.type === 'townsfolk' || neighbors.right.roleData.type === 'outsider');
+      
+      if (leftGood && rightGood) {
+        // 如果被检查的玩家 playerIndex 是其中一个邻居，则受茶水女保护！
+        return neighbors.left.index === playerIndex || neighbors.right.index === playerIndex;
+      }
+      return false;
+    });
+  }
+
   getLivingNeighbors(index) {
     const N = this.state.playerCount;
     let left = null;
@@ -2253,7 +2535,7 @@ class AppController {
       warningText += `⚠️ <strong>🚨 提线木偶虚假唤醒 🚨</strong>: 该玩家的真实角色为【提线木偶】！他自身坚信自己是【${fakeRoleName}】！你<strong>必须</strong>向其提供<strong>【虚假/错误】</strong>的信息，切勿向其泄露其真实身份！<br>`;
     }
     if (isVortoxInPlay && isGoodCamp) {
-      warningText += `⚠️ <strong>漩涡魔规律干扰</strong>: 场上有存活的恶魔【漩涡魔】运作中，所有善良阵营玩家的感知信息<strong>【必须为假】</strong>！（助手已为您自动预设错误选项）<br>`;
+      warningText += `⚠️ <strong>混乱风暴规律干扰</strong>: 场上有存活的恶魔【混乱风暴】运作中，所有善良阵营玩家的感知信息<strong>【必须为假】</strong>！（助手已为您自动预设错误选项）<br>`;
     }
 
     if (warningText) {
@@ -2397,7 +2679,7 @@ class AppController {
         suggestedCount = correctResult === 0 ? 1 : 0;
         
         helperRow.style.display = 'block';
-        helperRow.innerText = `🔍 助手提示 (已处理中毒/醉酒/漩涡魔): 实际对数为 ${correctResult} 对。但因处于失效/干扰状态，你必须提供错误信息。已为您自动选择错误值：${suggestedCount} 🔴`;
+        helperRow.innerText = `🔍 助手提示 (已处理中毒/醉酒/混乱风暴): 实际对数为 ${correctResult} 对。但因处于失效/干扰状态，你必须提供错误信息。已为您自动选择错误值：${suggestedCount} 🔴`;
         helperRow.style.color = '#e74c3c';
         helperRow.style.background = 'rgba(231, 76, 60, 0.1)';
         helperRow.style.border = '1px solid rgba(231, 76, 60, 0.2)';
@@ -2436,7 +2718,7 @@ class AppController {
         suggestedCount = correctResult === 0 ? 1 : 0;
         
         helperRow.style.display = 'block';
-        helperRow.innerText = `🔍 助手提示 (已处理中毒/醉酒/漩涡魔): 实际存活邪恶邻座数为 ${correctResult}。但因处于失效/干扰状态，你必须提供错误信息。已为您自动选择错误值：${suggestedCount} 🔴`;
+        helperRow.innerText = `🔍 助手提示 (已处理中毒/醉酒/混乱风暴): 实际存活邪恶邻座数为 ${correctResult}。但因处于失效/干扰状态，你必须提供错误信息。已为您自动选择错误值：${suggestedCount} 🔴`;
         helperRow.style.color = '#e74c3c';
         helperRow.style.background = 'rgba(231, 76, 60, 0.1)';
         helperRow.style.border = '1px solid rgba(231, 76, 60, 0.2)';
@@ -2509,7 +2791,7 @@ class AppController {
             suggestedResult = correctYes ? "摇头 (否) 🔴" : "点头 (是) 🟢";
             
             helperRow.style.display = 'block';
-            helperRow.innerText = `🔍 助手提示 (已处理中毒/醉酒/漩涡魔): 正常应 ${correctYes ? '点头 (是)' : '摇头 (否)'}。因处于失效状态，必须给假信息！已自动预设错误值：${suggestedResult} 🔴`;
+            helperRow.innerText = `🔍 助手提示 (已处理中毒/醉酒/混乱风暴): 正常应 ${correctYes ? '点头 (是)' : '摇头 (否)'}。因处于失效状态，必须给假信息！已自动预设错误值：${suggestedResult} 🔴`;
             helperRow.style.color = '#e74c3c';
             helperRow.style.background = 'rgba(231, 76, 60, 0.1)';
             helperRow.style.border = '1px solid rgba(231, 76, 60, 0.2)';
@@ -2575,7 +2857,7 @@ class AppController {
             suggestedCount = correctResult === 0 ? 1 : 0;
             
             helperRow.style.display = 'block';
-            helperRow.innerText = `🔍 助手提示 (已处理中毒/醉酒/漩涡魔): 实际苏醒数为 ${correctResult}。因处于失效状态，必须给假信息！已自动预设错误值：${suggestedCount} 🔴`;
+            helperRow.innerText = `🔍 助手提示 (已处理中毒/醉酒/混乱风暴): 实际苏醒数为 ${correctResult}。因处于失效状态，必须给假信息！已自动预设错误值：${suggestedCount} 🔴`;
             helperRow.style.color = '#e74c3c';
             helperRow.style.background = 'rgba(231, 76, 60, 0.1)';
             helperRow.style.border = '1px solid rgba(231, 76, 60, 0.2)';
@@ -2627,7 +2909,7 @@ class AppController {
             suggestedRoleKey = falseRoles[0] || (actualRoleKey === 'imp' ? 'washerwoman' : 'imp');
             
             helperRow.style.display = 'block';
-            helperRow.innerText = `🔍 助手提示 (已处理中毒/醉酒/漩涡魔): 实际今日处决角色为【${this.findRoleData(actualRoleKey).name}】。但处于失效状态，必须给假信息！已自动预设错误角色：【${this.findRoleData(suggestedRoleKey).name}】 🔴`;
+            helperRow.innerText = `🔍 助手提示 (已处理中毒/醉酒/混乱风暴): 实际今日处决角色为【${this.findRoleData(actualRoleKey).name}】。但处于失效状态，必须给假信息！已自动预设错误角色：【${this.findRoleData(suggestedRoleKey).name}】 🔴`;
             helperRow.style.color = '#e74c3c';
             helperRow.style.background = 'rgba(231, 76, 60, 0.1)';
             helperRow.style.border = '1px solid rgba(231, 76, 60, 0.2)';
@@ -2709,7 +2991,7 @@ class AppController {
             suggestedEvilKey = falseEvils[0] || 'imp';
             
             helperRow.style.display = 'block';
-            helperRow.innerText = `🔍 助手提示 (已处理中毒/醉酒/漩涡魔): 处于失效状态，展示的善良和邪恶角色都必须为假！已自动预设错误角色 🔴`;
+            helperRow.innerText = `🔍 助手提示 (已处理中毒/醉酒/混乱风暴): 处于失效状态，展示的善良和邪恶角色都必须为假！已自动预设错误角色 🔴`;
             helperRow.style.color = '#e74c3c';
             helperRow.style.background = 'rgba(231, 76, 60, 0.1)';
             helperRow.style.border = '1px solid rgba(231, 76, 60, 0.2)';
@@ -2777,7 +3059,7 @@ class AppController {
             suggestedRoleKey = falseRoles[0] || (targetRoleKey === 'imp' ? 'washerwoman' : 'imp');
             
             helperRow.style.display = 'block';
-            helperRow.innerText = `🔍 助手提示 (已处理中毒/醉酒/漩涡魔): 处于失效状态，展示的角色必须为假！已自动预设错误角色：【${this.findRoleData(suggestedRoleKey).name}】 🔴`;
+            helperRow.innerText = `🔍 助手提示 (已处理中毒/醉酒/混乱风暴): 处于失效状态，展示的角色必须为假！已自动预设错误角色：【${this.findRoleData(suggestedRoleKey).name}】 🔴`;
             helperRow.style.color = '#e74c3c';
             helperRow.style.background = 'rgba(231, 76, 60, 0.1)';
             helperRow.style.border = '1px solid rgba(231, 76, 60, 0.2)';
@@ -2944,22 +3226,22 @@ class AppController {
               helperRow.style.color = '#e74c3c';
               helperRow.style.background = 'rgba(231, 76, 60, 0.1)';
               helperRow.style.border = '1px solid rgba(231, 76, 60, 0.2)';
-              helperRow.innerHTML = `🔍 智能提示: 目标是外来者 [${target.name}]，但方古【本局已夺舍过】，目标将直接被杀害。💀`;
-              setDraft(`方古选择杀害外来者 [${target.name}]，但由于本局已夺舍过，目标正常死亡。`);
+              helperRow.innerHTML = `🔍 智能提示: 目标是外来者 [${target.name}]，但蚀梦游魂【本局已夺舍过】，目标将直接被杀害。💀`;
+              setDraft(`蚀梦游魂选择杀害外来者 [${target.name}]，但由于本局已夺舍过，目标正常死亡。`);
             } else if (isDrunkOrPoisoned) {
               helperRow.style.display = 'block';
               helperRow.style.color = '#e67e22';
               helperRow.style.background = 'rgba(230, 126, 34, 0.1)';
               helperRow.style.border = '1px solid rgba(230, 126, 34, 0.2)';
-              helperRow.innerHTML = `🔍 智能提示: 目标是外来者 [${target.name}]，但方古处于醉酒/中毒状态 🧪，夺舍失效，目标将直接被杀害。💀`;
-              setDraft(`方古选择杀害外来者 [${target.name}]，但方古处于醉酒/中毒状态，夺舍失败，目标正常死亡。`);
+              helperRow.innerHTML = `🔍 智能提示: 目标是外来者 [${target.name}]，但蚀梦游魂处于醉酒/中毒状态 🧪，夺舍失效，目标将直接被杀害。💀`;
+              setDraft(`蚀梦游魂选择杀害外来者 [${target.name}]，但蚀梦游魂处于醉酒/中毒状态，夺舍失败，目标正常死亡。`);
             } else {
               helperRow.style.display = 'block';
               helperRow.style.color = '#2ecc71';
               helperRow.style.background = 'rgba(46, 204, 113, 0.1)';
               helperRow.style.border = '1px solid rgba(46, 204, 113, 0.2)';
-              helperRow.innerHTML = `🔍 智能提示: 目标是外来者 [${target.name}] 且未夺舍过！保存后将触发【方古夺舍】。🟢`;
-              setDraft(`方古袭击外来者 [${target.name}] 并成功夺舍！[${target.name}] 转化为邪恶恶魔方古（继续存活），原方古 [${player ? player.name : '未知'}] 暴毙死亡 💀`);
+              helperRow.innerHTML = `🔍 智能提示: 目标是外来者 [${target.name}] 且未夺舍过！保存后将触发【蚀梦游魂夺舍】。🟢`;
+              setDraft(`蚀梦游魂袭击外来者 [${target.name}] 并成功夺舍！[${target.name}] 转化为邪恶恶魔蚀梦游魂（继续存活），原蚀梦游魂 [${player ? player.name : '未知'}] 暴毙死亡 💀`);
             }
           } else {
             helperRow.style.display = 'block';
@@ -2967,7 +3249,7 @@ class AppController {
             helperRow.style.background = 'rgba(231, 76, 60, 0.1)';
             helperRow.style.border = '1px solid rgba(231, 76, 60, 0.2)';
             helperRow.innerHTML = `🔍 智能提示: 目标 [${target.name}] 不是外来者，正常被杀害。💀`;
-            setDraft(`方古选择杀害玩家 [${target.name}]，目标正常死亡。`);
+            setDraft(`蚀梦游魂选择杀害玩家 [${target.name}]，目标正常死亡。`);
           }
         }
       };
@@ -2997,6 +3279,8 @@ class AppController {
             if (player) {
               player.dead = true;
               player.deathType = 'killed';
+              player.deathDay = this.state.dayNumber;
+              player.deathPhase = this.state.phase;
               player.hasVoteToken = true;
               player.poisoned = false;
               player.safe = false;
@@ -3007,7 +3291,7 @@ class AppController {
 
             this.state.fangguJumped = true;
 
-            this.addLog("说书人", `方古夺舍：方古 [${player ? player.name : '未知'}] 袭击了存活外来者 [${target.name}] (${oldOutsiderRoleData.name})！触发夺舍：[${target.name}] 转变为新的邪恶恶魔【方古】并继续存活，原方古 [${player ? player.name : '未知'}] 暴毙死亡！`);
+            this.addLog("说书人", `蚀梦游魂夺舍：蚀梦游魂 [${player ? player.name : '未知'}] 袭击了存活外来者 [${target.name}] (${oldOutsiderRoleData.name})！触发夺舍：[${target.name}] 转变为新的邪恶恶魔【蚀梦游魂】并继续存活，原蚀梦游魂 [${player ? player.name : '未知'}] 暴毙死亡！`);
             
             this.renderGrimoireCircle();
             this.saveToLocalStorage();
@@ -3018,6 +3302,8 @@ class AppController {
             }
             target.dead = true;
             target.deathType = 'killed';
+            target.deathDay = this.state.dayNumber;
+            target.deathPhase = this.state.phase;
             target.hasVoteToken = true;
 
             // Clear temporary states on dead player
@@ -3037,7 +3323,7 @@ class AppController {
               });
             }
 
-            this.addLog("说书人", `方古袭击：方古 [${player ? player.name : '未知'}] 袭击并杀害了玩家 [${target.name}] 💀`);
+            this.addLog("说书人", `蚀梦游魂袭击：蚀梦游魂 [${player ? player.name : '未知'}] 袭击并杀害了玩家 [${target.name}] 💀`);
             this.renderGrimoireCircle();
             this.saveToLocalStorage();
           }
@@ -3211,8 +3497,572 @@ class AppController {
       fakeRoleSel.select.onchange = updateCereText;
     }
 
+    // --- 教派与紫罗兰 (Sects & Violets) 专属高阶交互与算法支持 ---
+    
+    // clockmaker
+    else if (wakingKey === 'clockmaker') {
+      interactiveArea.appendChild(helperRow);
+      
+      const N = this.state.playerCount;
+      const demon = this.state.players.find(p => p.roleData && p.roleData.type === 'demon');
+      const minions = this.state.players.filter(p => p.roleData && p.roleData.type === 'minion');
+      
+      let minDistance = null;
+      if (demon && minions.length > 0) {
+        minions.forEach(minion => {
+          const cw = (minion.index - demon.index + N) % N;
+          const ccw = (demon.index - minion.index + N) % N;
+          const dist = Math.min(cw, ccw);
+          if (minDistance === null || dist < minDistance) {
+            minDistance = dist;
+          }
+        });
+      }
+      
+      if (minDistance !== null) {
+        helperRow.style.display = 'block';
+        helperRow.style.color = '#2ecc71';
+        helperRow.style.background = 'rgba(46, 204, 113, 0.1)';
+        helperRow.style.border = '1px solid rgba(46, 204, 113, 0.2)';
+        helperRow.innerHTML = `🔍 助手自动判定: 距离恶魔最近的爪牙身位距离为: <strong>${minDistance}</strong> 🟢`;
+        setDraft(`得知距离恶魔最近的爪牙玩家有 ${minDistance} 个身位`);
+      } else {
+        helperRow.style.display = 'block';
+        helperRow.style.color = '#e67e22';
+        helperRow.style.background = 'rgba(230, 126, 34, 0.1)';
+        helperRow.style.border = '1px solid rgba(230, 126, 34, 0.2)';
+        helperRow.innerHTML = `🔍 助手提示: 场上缺少恶魔或爪牙，无法自动计算身位距离。⚠️`;
+        setDraft(`得知距离恶魔最近的爪牙身位距离为: 未知`);
+      }
+    }
+
+    // mathematician
+    else if (wakingKey === 'mathematician') {
+      interactiveArea.appendChild(helperRow);
+      
+      // Count abnormal players (poisoned or drunk)
+      const count = this.state.players.filter(p => p.poisoned || p.drunk).length;
+      
+      helperRow.style.display = 'block';
+      helperRow.style.color = '#2ecc71';
+      helperRow.style.background = 'rgba(46, 204, 113, 0.1)';
+      helperRow.style.border = '1px solid rgba(46, 204, 113, 0.2)';
+      helperRow.innerHTML = `🔍 助手提示: 当前有 <strong>${count}</strong> 名玩家的能力因中毒/醉酒异常运作 🟢`;
+      setDraft(`得知今天共有 ${count} 名玩家的能力运作异常。`);
+    }
+
+    // oracle
+    else if (wakingKey === 'oracle') {
+      interactiveArea.appendChild(helperRow);
+      
+      // Count dead evil players
+      const deadEvilCount = this.state.players.filter(p => p.dead && p.roleData && ['minion', 'demon'].includes(p.roleData.type)).length;
+      
+      helperRow.style.display = 'block';
+      helperRow.style.color = '#3498db';
+      helperRow.style.background = 'rgba(52, 152, 219, 0.1)';
+      helperRow.style.border = '1px solid rgba(52, 152, 219, 0.2)';
+      helperRow.innerHTML = `🔍 助手计算: 已出局死亡的玩家中共有 <strong>${deadEvilCount}</strong> 名邪恶阵营玩家 🟢`;
+      setDraft(`得知当前已出局死亡的玩家群体中，共有 ${deadEvilCount} 名邪恶阵营玩家。`);
+    }
+
+    // flowergirl
+    else if (wakingKey === 'flowergirl') {
+      const resultSel = this.createDropdownElement("恶魔今天白天是否参与过投票？", ["否 ❌", "是 投票过 🪓"]);
+      interactiveArea.appendChild(resultSel.row);
+      
+      const updateFGText = () => {
+        const voted = resultSel.select.value.includes("是");
+        setDraft(`告知卖花女：恶魔今天白天在处决投票中 [${voted ? '是' : '否'}] 进行过举手投票。`);
+      };
+      resultSel.select.onchange = updateFGText;
+      updateFGText();
+    }
+
+    // towncrier
+    else if (wakingKey === 'towncrier') {
+      const resultSel = this.createDropdownElement("今天白天是否有爪牙进行过提名发言？", ["否 ❌", "是 发起过提名 📢"]);
+      interactiveArea.appendChild(resultSel.row);
+      
+      const updateTCText = () => {
+        const nominated = resultSel.select.value.includes("是");
+        setDraft(`告知公告员：今天白天的提名人选环节中，[${nominated ? '有' : '没有'}] 爪牙发起过提名。`);
+      };
+      resultSel.select.onchange = updateTCText;
+      updateTCText();
+    }
+
+    // philosopher
+    else if (wakingKey === 'philosopher') {
+      const goodRoles = [
+        ...this.getAvailableRolesList('townsfolk'),
+        ...this.getAvailableRolesList('outsider')
+      ].filter(r => r.key !== 'philosopher');
+      
+      const selRole = this.createRoleSelectorElement("夺取哪个善良角色的能力:", "all");
+      interactiveArea.appendChild(selRole.row);
+      interactiveArea.appendChild(helperRow);
+      
+      const updatePhilo = () => {
+        const roleKey = selRole.select.value;
+        const roleData = this.findRoleData(roleKey);
+        
+        if (roleKey && roleData) {
+          const inPlayTarget = this.state.players.find(p => p.role === roleKey && !p.dead);
+          if (inPlayTarget) {
+            helperRow.style.display = 'block';
+            helperRow.style.color = '#e67e22';
+            helperRow.style.background = 'rgba(230, 126, 34, 0.1)';
+            helperRow.style.border = '1px solid rgba(230, 126, 34, 0.2)';
+            helperRow.innerHTML = `🔍 智能提示: 该角色当前在场由 [${inPlayTarget.name}] 扮演！保存后将导致该玩家处于【哲学家醉酒】状态。⚠️`;
+            setDraft(`哲学家选择夺取善良角色【${roleData.name}】的能力，在场玩家 [${inPlayTarget.name}] 陷入醉酒 🍺`);
+          } else {
+            helperRow.style.display = 'block';
+            helperRow.style.color = '#2ecc71';
+            helperRow.style.background = 'rgba(46, 204, 113, 0.1)';
+            helperRow.style.border = '1px solid rgba(46, 204, 113, 0.2)';
+            helperRow.innerHTML = `🔍 智能提示: 该角色当前不在场，你可以无副作用地获得其能力。🟢`;
+            setDraft(`哲学家选择夺取不在场善良角色【${roleData.name}】的能力。`);
+          }
+        } else {
+          helperRow.style.display = 'none';
+          setDraft("哲学家放弃夺取任何能力或未做出选择。");
+        }
+      };
+      
+      selRole.select.onchange = updatePhilo;
+      updatePhilo();
+      
+      const originalSave = saveBtn.onclick;
+      saveBtn.onclick = () => {
+        this.restorePlayersFromBackup();
+        const roleKey = selRole.select.value;
+        if (roleKey) {
+          player.philosopherChosenRole = roleKey;
+          
+          // Apply drunk to anyone playing that role
+          const inPlayTarget = this.state.players.find(p => p.role === roleKey && !p.dead);
+          if (inPlayTarget) {
+            inPlayTarget.drunk = true;
+            this.addLog("说书人", `哲学家抢夺能力生效：在场玩家 [${inPlayTarget.name}] (${inPlayTarget.roleData?.name}) 陷入【哲学家醉酒】状态 🍺`);
+          }
+          if (player) {
+            player.abilityUsed = true;
+          }
+          this.renderGrimoireCircle();
+          this.saveToLocalStorage();
+        } else {
+          this.renderGrimoireCircle();
+          this.saveToLocalStorage();
+        }
+        originalSave();
+      };
+    }
+
+    // seamstress
+    else if (wakingKey === 'seamstress') {
+      const selA = this.createSelectorElement("选择调查玩家 A:", false);
+      const selB = this.createSelectorElement("选择调查玩家 B:", false);
+      
+      interactiveArea.appendChild(selA.row);
+      interactiveArea.appendChild(selB.row);
+      interactiveArea.appendChild(helperRow);
+      
+      const updateSeamstress = () => {
+        const pA = this.state.players[selA.select.value];
+        const pB = this.state.players[selB.select.value];
+        
+        if (pA && pB) {
+          const isAEvil = this.isEvilPlayer(pA);
+          const isBEvil = this.isEvilPlayer(pB);
+          const sameCamp = isAEvil === isBEvil;
+          
+          helperRow.style.display = 'block';
+          helperRow.style.color = '#2ecc71';
+          helperRow.style.background = 'rgba(46, 204, 113, 0.1)';
+          helperRow.style.border = '1px solid rgba(46, 204, 113, 0.2)';
+          helperRow.innerHTML = `🔍 助手判定: 两位玩家阵营【${sameCamp ? '相同' : '不同'}】 🟢 (A是${isAEvil ? '邪恶' : '善良'}，B是${isBEvil ? '邪恶' : '善良'})`;
+          
+          setDraft(`裁缝使用一次性技能调查 [${pA.name}] 与 [${pB.name}]，得知他们两人的阵营 [${sameCamp ? '相同' : '不同'}]。`);
+        } else {
+          helperRow.style.display = 'none';
+          setDraft("裁缝尚未决定调查对象。");
+        }
+      };
+      
+      selA.select.onchange = updateSeamstress;
+      selB.select.onchange = updateSeamstress;
+      updateSeamstress();
+      
+      const originalSave = saveBtn.onclick;
+      saveBtn.onclick = () => {
+        const pA = this.state.players[selA.select.value];
+        const pB = this.state.players[selB.select.value];
+        if (pA && pB) {
+          if (player) {
+            player.abilityUsed = true;
+          }
+          this.renderGrimoireCircle();
+          this.saveToLocalStorage();
+        }
+        originalSave();
+      };
+    }
+
+    // witch
+    else if (wakingKey === 'witch') {
+      const sel = this.createSelectorElement("下毒咒目标 (明天首次提名将暴毙):", true); // living only
+      interactiveArea.appendChild(sel.row);
+      
+      sel.select.onchange = (e) => {
+        this.restorePlayersFromBackup();
+        const val = e.target.value;
+        const target = this.state.players[val];
+        if (target) {
+          this.state.players.forEach(p => p.witchCursed = false);
+          target.witchCursed = true;
+          this.renderGrimoireCircle();
+          this.saveToLocalStorage();
+          setDraft(`女巫对存活玩家 [${target.name}] 施加提名诅咒 ☠️`);
+        } else {
+          this.state.players.forEach(p => p.witchCursed = false);
+          setDraft("");
+          this.renderGrimoireCircle();
+          this.saveToLocalStorage();
+        }
+      };
+    }
+
+    // pithag
+    else if (wakingKey === 'pithag') {
+      const targetSel = this.createSelectorElement("选择要变形的目标玩家:", false);
+      const roleSel = this.createRoleSelectorElement("将其变形为新角色:", "all");
+      
+      interactiveArea.appendChild(targetSel.row);
+      interactiveArea.appendChild(roleSel.row);
+      
+      const updatePitHag = () => {
+        const target = this.state.players[targetSel.select.value];
+        const roleKey = roleSel.select.value;
+        const roleData = this.findRoleData(roleKey);
+        
+        if (target && roleKey && roleData) {
+          setDraft(`熬药巫婆施展变形术，将玩家 [${target.name}] 转换为【${roleData.name}】🔮`);
+        } else {
+          setDraft("熬药巫婆尚未决定变形目标与角色。");
+        }
+      };
+      
+      targetSel.select.onchange = updatePitHag;
+      roleSel.select.onchange = updatePitHag;
+      updatePitHag();
+      
+      const originalSave = saveBtn.onclick;
+      saveBtn.onclick = () => {
+        this.restorePlayersFromBackup();
+        const target = this.state.players[targetSel.select.value];
+        const roleKey = roleSel.select.value;
+        const roleData = this.findRoleData(roleKey);
+        
+        if (target && roleKey && roleData) {
+          const oldRoleCN = target.roleData ? target.roleData.name : target.role;
+          
+          target.role = roleKey;
+          target.roleData = roleData;
+          
+          this.addLog("说书人", `熬药巫婆变形效果生效：[${target.name}] 的角色由 [${oldRoleCN}] 转变为 [${roleData.name}] 🔮`);
+          this.renderGrimoireCircle();
+          this.saveToLocalStorage();
+        } else {
+          this.renderGrimoireCircle();
+          this.saveToLocalStorage();
+        }
+        originalSave();
+      };
+    }
+
+    // barber
+    else if (wakingKey === 'barber') {
+      const selA = this.createSelectorElement("交换存活玩家 A:", true);
+      const selB = this.createSelectorElement("交换存活玩家 B:", true);
+      
+      const swapBtn = document.createElement('button');
+      swapBtn.className = 'btn btn-secondary';
+      swapBtn.style.fontSize = '0.75rem';
+      swapBtn.style.padding = '6px';
+      swapBtn.innerText = "🔄 秘密交换角色并保存";
+      
+      interactiveArea.appendChild(selA.row);
+      interactiveArea.appendChild(selB.row);
+      interactiveArea.appendChild(swapBtn);
+      interactiveArea.appendChild(helperRow);
+      
+      swapBtn.onclick = () => {
+        const pA = this.state.players[selA.select.value];
+        const pB = this.state.players[selB.select.value];
+        
+        if (pA && pB && pA.index !== pB.index) {
+          const tempRole = pA.role;
+          const tempRoleData = pA.roleData;
+          
+          pA.role = pB.role;
+          pA.roleData = pB.roleData;
+          
+          pB.role = tempRole;
+          pB.roleData = tempRoleData;
+          
+          this.addLog("系统", `【理发师死亡特殊效果】：说书人秘密交换了存活玩家 [${pA.name}] 与 [${pB.name}] 的身份卡牌 🔄`);
+          
+          helperRow.style.display = 'block';
+          helperRow.style.color = '#2ecc71';
+          helperRow.style.background = 'rgba(46, 204, 113, 0.1)';
+          helperRow.style.border = '1px solid rgba(46, 204, 113, 0.2)';
+          helperRow.innerHTML = `🔄 交换成功！[${pA.name}] 与 [${pB.name}] 的卡牌已成功互调。请注意秘密告知邪恶阵营新交换结果！`;
+          
+          setDraft(`理发师死亡效果：说书人交换了存活玩家 [${pA.name}] (${pB.roleData?.name}) 与 [${pB.name}] (${pA.roleData?.name}) 的身份。`);
+          
+          if (player) {
+            player.abilityUsed = true;
+          }
+          this.renderGrimoireCircle();
+          this.saveToLocalStorage();
+        } else {
+          alert("请选择两个不同的存活玩家再进行交换！");
+        }
+      };
+    }
+
+    // eviltwin
+    else if (wakingKey === 'eviltwin') {
+      const goodTwinSel = this.createSelectorElement("选择与该邪恶双子绑定的善良双子玩家:", false);
+      interactiveArea.appendChild(goodTwinSel.row);
+      
+      const updateTwin = () => {
+        const target = this.state.players[goodTwinSel.select.value];
+        if (target) {
+          setDraft(`邪恶双子 [${player ? player.name : '未分配'}] 与善良双子 [${target.name}] 互相确认身份 👥`);
+        }
+      };
+      
+      goodTwinSel.select.onchange = updateTwin;
+      updateTwin();
+    }
+
+    // juggler
+    else if (wakingKey === 'juggler') {
+      const countSel = this.createDropdownElement("杂耍艺人今天猜对的善良玩家数:", [0, 1, 2, 3, 4, 5]);
+      interactiveArea.appendChild(countSel.row);
+      
+      const updateJuggler = () => {
+        setDraft(`杂耍艺人醒来，得知他今天白天公开猜对身份的善良玩家数量为: 【${countSel.select.value}】个`);
+      };
+      
+      countSel.select.onchange = updateJuggler;
+      updateJuggler();
+    }
+
+    // sage
+    else if (wakingKey === 'sage') {
+      const demon = this.state.players.find(p => p.roleData && p.roleData.type === 'demon');
+      const otherLiving = this.state.players.filter(p => !p.dead && p.index !== (demon ? demon.index : -1));
+      
+      const decoySel = this.createSTPlayerSelectorElement("选择干扰/假恶魔备选目标玩家 (存活):", true);
+      interactiveArea.appendChild(decoySel.row);
+      interactiveArea.appendChild(helperRow);
+      
+      const updateSage = () => {
+        const decoy = this.state.players[decoySel.select.value];
+        const actualDemonName = demon ? demon.name : "未分配的恶魔";
+        
+        if (decoy) {
+          helperRow.style.display = 'block';
+          helperRow.style.color = '#3498db';
+          helperRow.style.background = 'rgba(52, 152, 219, 0.1)';
+          helperRow.style.border = '1px solid rgba(52, 152, 219, 0.2)';
+          helperRow.innerHTML = `🔍 智能提示: 杀死贤者的恶魔是 [${actualDemonName}]。您选择展示的两个备选项为: 【[${actualDemonName}] 和 [${decoy.name}]】 🟢`;
+          setDraft(`贤者夜间被恶魔杀死暴毙，唤醒并得知两名玩家 [${actualDemonName}] 与 [${decoy.name}] 之一是恶魔。`);
+        } else {
+          helperRow.style.display = 'none';
+          setDraft("贤者暴毙，尚未决定要出示的另一名假目标。");
+        }
+      };
+      
+      decoySel.select.onchange = updateSage;
+      
+      if (otherLiving.length > 0) {
+        decoySel.select.value = otherLiving[Math.floor(Math.random() * otherLiving.length)].index;
+        updateSage();
+      }
+      
+      const originalSave = saveBtn.onclick;
+      saveBtn.onclick = () => {
+        if (player) {
+          player.abilityUsed = true;
+        }
+        this.renderGrimoireCircle();
+        this.saveToLocalStorage();
+        originalSave();
+      };
+    }
+
+    // godfather
+    else if (wakingKey === 'godfather') {
+      const isFirst = (this.state.dayNumber === 1);
+      
+      if (isFirst) {
+        // 第一夜教父是知道外来者的
+        // 查找在场的外来者玩家
+        const outsiders = this.state.players.filter(p => {
+          const charData = this.findRoleData(p.role);
+          return charData && charData.type === 'outsider';
+        });
+
+        const infoDiv = document.createElement('div');
+        infoDiv.style.background = 'rgba(212, 175, 55, 0.1)';
+        infoDiv.style.border = '1px solid rgba(212, 175, 55, 0.3)';
+        infoDiv.style.padding = '10px';
+        infoDiv.style.borderRadius = '8px';
+        infoDiv.style.marginBottom = '10px';
+        infoDiv.style.color = 'hsl(var(--gold))';
+        infoDiv.style.fontSize = '0.9rem';
+        infoDiv.style.lineHeight = '1.4';
+
+        if (outsiders.length > 0) {
+          let listHtml = outsiders.map(p => {
+            const charData = this.findRoleData(p.role);
+            const roleName = charData ? charData.name : p.role;
+            return `👤 <strong>${p.name}</strong> (座位 ${p.index + 1}) — 角色: <strong>${roleName}</strong>`;
+          }).join('<br>');
+          infoDiv.innerHTML = `👁️ <strong>【教父首夜专属信息】</strong><br>本局在场的外来者如下，说书人请指点并告知教父：<br>${listHtml}`;
+          setDraft(`首夜唤醒教父，并告知其本局在场的外来者：${outsiders.map(p => `${p.name}(${this.findRoleData(p.role)?.name || p.role})`).join('、')}。`);
+        } else {
+          infoDiv.innerHTML = `👁️ <strong>【教父首夜专属信息】</strong><br>本局没有外来者在场 🟢`;
+          setDraft(`首夜唤醒教父，得知本局没有外来者在场。`);
+        }
+        interactiveArea.appendChild(infoDiv);
+
+      } else {
+        // 非首夜：如果今天有外来者死亡，教父晚上带刀
+        // 检测今日是否有外来者死亡
+        const outsiderDied = this.didAnyOutsiderDieToday();
+        
+        const infoDiv = document.createElement('div');
+        infoDiv.style.padding = '10px';
+        infoDiv.style.borderRadius = '8px';
+        infoDiv.style.marginBottom = '10px';
+        infoDiv.style.fontSize = '0.9rem';
+        infoDiv.style.lineHeight = '1.4';
+
+        if (outsiderDied) {
+          // 找到死亡的外来者有哪些
+          const deadOutsidersToday = this.state.players.filter(p => {
+            if (!p.dead || p.deathDay !== this.state.dayNumber) return false;
+            const diedInDaytime = (p.deathPhase === 'day' || p.deathType === 'executed');
+            if (!diedInDaytime) return false;
+            const charData = this.findRoleData(p.role);
+            return charData && charData.type === 'outsider';
+          });
+          const deadNames = deadOutsidersToday.map(p => `【${p.name} (${this.findRoleData(p.role)?.name})】`).join('，');
+
+          infoDiv.style.background = 'rgba(231, 76, 60, 0.15)';
+          infoDiv.style.border = '1px solid rgba(231, 76, 60, 0.3)';
+          infoDiv.style.color = '#e74c3c';
+          infoDiv.innerHTML = `⚔️ <strong>【教父带刀提醒】</strong><br>今日有外来者死亡！(${deadNames})<br>👉 <strong>教父今晚带刀，拥有一次击杀机会！</strong>`;
+          interactiveArea.appendChild(infoDiv);
+
+          // 显示选择击杀目标的下拉框
+          const sel = this.createSelectorElement("教父刺杀目标:", true); // living only
+          interactiveArea.appendChild(sel.row);
+
+          const updateGodfatherKill = () => {
+            this.restorePlayersFromBackup();
+            const target = this.state.players[sel.select.value];
+            if (target) {
+              let actualKilled = true;
+              let draftMsg = `教父今晚带刀发动袭击，杀害了存活玩家 [${target.name}] 💀`;
+
+              // 1. 检查茶水女保护
+              const isTeaLadyProtected = this.isProtectedByTeaLady(target.index);
+              if (isTeaLadyProtected) {
+                if (!confirm(`【⚠️ 茶水女免死结界警告】\n\n目标玩家 [${target.name}] 当前正受到存活且未醉酒中毒的【茶水女】保护！\n\n正常情况下他今晚【无法死亡】。是否要强制杀害？`)) {
+                  actualKilled = false;
+                  draftMsg = `教父试图袭击受茶水女保护的玩家 [${target.name}]，但被茶水女免死结界阻挡，无人死亡 🛡️`;
+                }
+              }
+
+              // 2. 检查弄臣免死 (如果依然要杀死，且是弄臣)
+              if (actualKilled && target.role === 'fool') {
+                const isDrunkOrPoisoned = target.drunk || target.poisoned;
+                if (!isDrunkOrPoisoned) {
+                  if (!target.foolLifeUsed) {
+                    alert(`【🎭 弄臣首次死亡免死】\n\n袭击目标 [${target.name}] (弄臣) 首次死亡，且处于清醒健康状态！\n\n系统已自动触发其免死金牌：免除今晚的死亡，扣除一次免死机会，弄臣平安度过此夜！`);
+                    target.foolLifeUsed = true;
+                    actualKilled = false;
+                    draftMsg = `教父袭击了清醒健康的弄臣 [${target.name}]，触发弄臣首次免死，弄臣平安存活并扣除一次免死机会 ✨`;
+                    this.addLog("说书人", `弄臣 [${target.name}] 夜间受到袭击，触发首次免死，继续存活！`);
+                  } else {
+                    alert(`【⚠️ 弄臣警告】\n\n袭击目标 [${target.name}] (弄臣) 之前已经消耗过免死金牌，今晚将正常死亡！`);
+                  }
+                } else {
+                  alert(`【🚨 弄臣失效警告】\n\n袭击目标 [${target.name}] (弄臣) 当前处于【醉酒/中毒】状态，其技能失效，正常死亡！`);
+                }
+              }
+
+              if (actualKilled) {
+                if (target.safe) {
+                  alert(`【警示】: 目标玩家 [${target.name}] 受到僧侣/老板守护免死 🛡️，但如果您出于说书人权能强制杀害，可继续保存。`);
+                }
+                target.dead = true;
+                target.deathType = 'killed';
+                target.deathDay = this.state.dayNumber;
+                target.deathPhase = this.state.phase;
+                target.hasVoteToken = true;
+                
+                // 自动清洗死者的临时状态
+                target.poisoned = false;
+                target.safe = false;
+                if (target.role !== 'drunk') {
+                  target.drunk = false;
+                }
+
+                // 下毒者死亡解毒规则
+                if (target.role === 'poisoner') {
+                  this.state.players.forEach(otherP => {
+                    if (otherP.poisoned) {
+                      otherP.poisoned = false;
+                      this.addLog("系统", `因下毒者 [${target.name}] 死亡，自动清除了 [${otherP.name}] 的中毒状态 🧪`);
+                    }
+                  });
+                }
+              }
+
+              this.renderGrimoireCircle();
+              this.saveToLocalStorage();
+              setDraft(draftMsg);
+            } else {
+              setDraft("教父今晚带刀选择空切，无人死亡。");
+              this.renderGrimoireCircle();
+              this.saveToLocalStorage();
+            }
+          };
+
+          sel.select.onchange = updateGodfatherKill;
+          updateGodfatherKill();
+
+        } else {
+          infoDiv.style.background = 'rgba(46, 204, 113, 0.15)';
+          infoDiv.style.border = '1px solid rgba(46, 204, 113, 0.3)';
+          infoDiv.style.color = '#2ecc71';
+          infoDiv.innerHTML = `🛡️ <strong>【教父不带刀】</strong><br>今日没有外来者死亡。<br>👉 <strong>教父今晚没有杀人权利（不带刀）。说书人请直接确认过夜。</strong>`;
+          interactiveArea.appendChild(infoDiv);
+          
+          setDraft("教父今晚不带刀（今日无外来者死亡），直接确认过夜。");
+        }
+      }
+    }
+
     // imp & other killing demons
-    else if (['imp', 'subassassin', 'godfather', 'po', 'shabaloth', 'zombuul', 'fanggu', 'vigormortis', 'nodashii', 'vortox'].includes(wakingKey)) {
+    else if (['imp', 'subassassin', 'po', 'shabaloth', 'zombuul', 'fanggu', 'vigormortis', 'nodashii', 'vortox'].includes(wakingKey)) {
       const isAssassin = wakingKey === 'subassassin';
       const labelText = isAssassin ? "刺客必死刺杀目标:" : "袭击/杀害目标:";
       const sel = this.createSelectorElement(labelText, true); // living only
@@ -3223,34 +4073,67 @@ class AppController {
         const val = e.target.value;
         const target = this.state.players[val];
         if (target) {
-          if (target.safe && !isAssassin) {
-            alert(`【警示】: 目标玩家 [${target.name}] 受到僧侣/老板守护免死 🛡️，但如果您出于说书人权能强制杀害，可继续保存。`);
-          }
-          target.dead = true;
-          target.deathType = 'killed';
-          target.hasVoteToken = true;
+          let actualKilled = true;
+          let draftMsg = isAssassin ? `刺客发动必死刺杀，残忍杀害了玩家 [${target.name}] 💀` : `恶魔发动夜间袭击，杀害了存活玩家 [${target.name}] 💀`;
 
-          // 自动清洗死者的临时状态
-          target.poisoned = false;
-          target.safe = false;
-          if (target.role !== 'drunk') {
-            target.drunk = false;
+          // 1. 检查茶水女保护
+          const isTeaLadyProtected = this.isProtectedByTeaLady(target.index);
+          if (isTeaLadyProtected && !isAssassin) {
+            if (!confirm(`【⚠️ 茶水女免死结界警告】\n\n目标玩家 [${target.name}] 当前正受到存活且未醉酒中毒的【茶水女】保护！\n\n正常情况下他今晚【无法死亡】。是否要强制杀害？`)) {
+              actualKilled = false;
+              draftMsg = `恶魔试图袭击受茶水女保护的玩家 [${target.name}]，但被茶水女免死结界阻挡，无人死亡 🛡️`;
+            }
           }
 
-          // 规则：下毒者一旦死亡，被其毒害的目标必须立刻解毒！
-          if (target.role === 'poisoner') {
-            this.state.players.forEach(otherP => {
-              if (otherP.poisoned) {
-                otherP.poisoned = false;
-                this.addLog("系统", `因下毒者 [${target.name}] 死亡，自动清除了 [${otherP.name}] 的中毒状态 🧪`);
+          // 2. 检查弄臣免死 (如果依然要杀死，且是弄臣)
+          if (actualKilled && target.role === 'fool') {
+            const isDrunkOrPoisoned = target.drunk || target.poisoned;
+            if (!isDrunkOrPoisoned) {
+              if (!target.foolLifeUsed) {
+                alert(`【🎭 弄臣首次死亡免死】\n\n袭击目标 [${target.name}] (弄臣) 首次死亡，且处于清醒健康状态！\n\n系统已自动触发其免死金牌：免除今晚的死亡，扣除一次免死机会，弄臣平安度过此夜！`);
+                target.foolLifeUsed = true;
+                actualKilled = false;
+                draftMsg = `恶魔袭击了清醒健康的弄臣 [${target.name}]，触发弄臣首次免死，弄臣平安存活并扣除一次免死机会 ✨`;
+                this.addLog("说书人", `弄臣 [${target.name}] 夜间受到袭击，触发首次免死，继续存活！`);
+              } else {
+                alert(`【⚠️ 弄臣警告】\n\n袭击目标 [${target.name}] (弄臣) 之前已经消耗过免死金牌，今晚将正常死亡！`);
               }
-            });
+            } else {
+              alert(`【🚨 弄臣失效警告】\n\n袭击目标 [${target.name}] (弄臣) 当前处于【醉酒/中毒】状态，其技能失效，正常死亡！`);
+            }
+          }
+
+          if (actualKilled) {
+            if (target.safe && !isAssassin) {
+              alert(`【警示】: 目标玩家 [${target.name}] 受到僧侣/老板守护免死 🛡️，但如果您出于说书人权能强制杀害，可继续保存。`);
+            }
+            target.dead = true;
+            target.deathType = 'killed';
+            target.deathDay = this.state.dayNumber;
+            target.deathPhase = this.state.phase;
+            target.hasVoteToken = true;
+
+            // 自动清洗死者的临时状态
+            target.poisoned = false;
+            target.safe = false;
+            if (target.role !== 'drunk') {
+              target.drunk = false;
+            }
+
+            // 规则：下毒者一旦死亡，被其毒害的目标必须立刻解毒！
+            if (target.role === 'poisoner') {
+              this.state.players.forEach(otherP => {
+                if (otherP.poisoned) {
+                  otherP.poisoned = false;
+                  this.addLog("系统", `因下毒者 [${target.name}] 死亡，自动清除了 [${otherP.name}] 的中毒状态 🧪`);
+                }
+              });
+            }
           }
 
           this.renderGrimoireCircle();
           this.saveToLocalStorage();
-
-          setDraft(isAssassin ? `刺客发动必死刺杀，残忍杀害了玩家 [${target.name}] 💀` : `恶魔发动夜间袭击，杀害了存活玩家 [${target.name}] 💀`);
+          setDraft(draftMsg);
         } else {
           setDraft("");
           this.renderGrimoireCircle();
@@ -3638,6 +4521,233 @@ class AppController {
   
   closeScriptReferenceModal() {
     const modal = document.getElementById('script-reference-modal');
+    if (modal) modal.classList.remove('active');
+  }
+
+  getRoleTypeBg(type) {
+    const map = {
+      townsfolk: 'rgba(93, 173, 226, 0.12)',
+      outsider: 'rgba(245, 176, 65, 0.12)',
+      minion: 'rgba(236, 112, 99, 0.12)',
+      demon: 'rgba(255, 107, 107, 0.12)'
+    };
+    return map[type] || 'rgba(255, 255, 255, 0.1)';
+  }
+
+  openSingleRoleModal(roleKey) {
+    const char = this.findRoleData(roleKey);
+    if (!char) return;
+
+    const modal = document.getElementById('single-role-modal');
+    const titleEl = document.getElementById('single-role-modal-title');
+    const bodyEl = document.getElementById('single-role-modal-body');
+
+    if (!modal || !bodyEl || !titleEl) return;
+
+    titleEl.innerText = `${char.name} (${char.en})`;
+
+    bodyEl.innerHTML = `
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <div style="font-size: 0.8rem; font-weight: bold; color: ${this.getRoleTypeColor(char.type)}; background: ${this.getRoleTypeBg(char.type)}; padding: 4px 8px; border-radius: 4px; align-self: flex-start; border: 1px solid ${this.getRoleTypeColor(char.type)}2b;">
+          ${this.getRoleTypeCN(char.type)}
+        </div>
+        <div style="font-size: 0.85rem; color: #fff; line-height: 1.5; margin-top: 5px; border: 1px solid rgba(255,255,255,0.06); padding: 10px; border-radius: 6px; background: rgba(0,0,0,0.25);">
+          ${char.ability}
+        </div>
+        ${char.wakeFirst ? `
+          <div style="margin-top: 8px;">
+            <div style="font-size: 0.75rem; color: hsl(var(--gold)); font-weight: bold; margin-bottom: 2px;">首夜行动说书人指引：</div>
+            <div style="font-size: 0.75rem; color: #d1d5db; line-height: 1.4; padding-left: 8px; border-left: 2px solid hsl(var(--gold));">${char.wakeFirst}</div>
+          </div>
+        ` : ''}
+        ${char.wakeOther ? `
+          <div style="margin-top: 8px;">
+            <div style="font-size: 0.75rem; color: hsl(var(--gold)); font-weight: bold; margin-bottom: 2px;">其他夜晚行动说书人指引：</div>
+            <div style="font-size: 0.75rem; color: #d1d5db; line-height: 1.4; padding-left: 8px; border-left: 2px solid hsl(var(--gold));">${char.wakeOther}</div>
+          </div>
+        ` : ''}
+      </div>
+    `;
+
+    modal.classList.add('active');
+  }
+
+  closeSingleRoleModal() {
+    const modal = document.getElementById('single-role-modal');
+    if (modal) modal.classList.remove('active');
+  }
+
+  openGameOverModal() {
+    const players = this.state.players;
+    if (!players || players.length === 0) {
+      alert("当前游戏中没有玩家，无法进行结算！");
+      return;
+    }
+
+    const alivePlayers = players.filter(p => !p.dead);
+    const aliveCount = alivePlayers.length;
+
+    // 找出所有恶魔及存活状态
+    const demons = players.filter(p => p.roleData && p.roleData.type === 'demon');
+    const aliveDemons = demons.filter(p => !p.dead);
+    const totalDemons = demons.length;
+
+    // 检查特殊角色是否在场/死亡
+    const isRoleInPlay = (roleKey) => players.some(p => p.role === roleKey);
+    const isRoleDead = (roleKey) => players.some(p => p.role === roleKey && p.dead);
+
+    const hasEvilTwin = isRoleInPlay('eviltwin');
+    const isEvilTwinAlive = players.some(p => p.role === 'eviltwin' && !p.dead);
+    const hasSaint = isRoleInPlay('saint');
+    const isSaintDead = isRoleDead('saint');
+    const hasGoblin = isRoleInPlay('goblin');
+    const isGoblinDead = isRoleDead('goblin');
+    const hasKlutz = isRoleInPlay('klutz');
+    const isKlutzDead = isRoleDead('klutz');
+    const hasHeretic = isRoleInPlay('heretic');
+    const hasMayor = isRoleInPlay('mayor');
+    const isMayorAlive = players.some(p => p.role === 'mayor' && !p.dead);
+
+    // 判定逻辑
+    let recommendation = "";
+    let statusText = "";
+    let statusColor = "";
+    let rulesApplied = [];
+
+    if (totalDemons === 0) {
+      statusText = "⚖️ 游戏进行中 / 需手动裁决";
+      statusColor = "hsl(var(--gold))";
+      recommendation = "当前魔典中尚未分配任何恶魔角色。请在分配完恶魔并进行游戏后再进行判定。";
+    } else {
+      // 1. 检查邪恶阵营获胜条件：只剩 2 人存活且恶魔存活
+      if (aliveCount === 2 && aliveDemons.length > 0) {
+        statusText = "🔴 建议判定：邪恶阵营获胜！";
+        statusColor = "#e74c3c";
+        recommendation = "场上目前**仅剩 2 名存活玩家**，且其中**包含存活的恶魔**。邪恶阵营已锁定胜局！";
+        rulesApplied.push("仅剩 2 名存活玩家且包含恶魔（恶魔拥有绝对平局支配权）。");
+      }
+      // 2. 检查善良阵营获胜条件：恶魔全部死亡，且双子不同时存活
+      else if (aliveDemons.length === 0) {
+        if (hasEvilTwin && isEvilTwinAlive && alivePlayers.some(p => p.roleData && ['townsfolk', 'outsider'].includes(p.roleData.type))) {
+          statusText = "⚖️ 判定提示：恶魔虽死，但游戏继续";
+          statusColor = "#f39c12";
+          recommendation = "场上的**恶魔已全部死亡出局**。但是，由于场上**邪恶双子依然存活**，善良阵营暂时无法获胜！必须先投票处决双子中的邪恶方，或处决善良双子让邪恶直接获胜。";
+          rulesApplied.push("恶魔死亡，但邪恶双子依然存活并限制了善良获胜。");
+        } else {
+          statusText = "🟢 建议判定：善良阵营获胜！";
+          statusColor = "#2ecc71";
+          recommendation = "场上的**恶魔已全部死亡出局**！且当前没有限制获胜的特殊爪牙（如邪恶双子）存活。善良阵营赢得胜利！";
+          rulesApplied.push("所有恶魔玩家均已出局。");
+        }
+      }
+      // 3. 默认进行中
+      else {
+        statusText = "⚖️ 建议判定：游戏仍在进行中";
+        statusColor = "#3498db";
+        recommendation = "场上还有存活的恶魔（共 " + aliveDemons.length + " 个），且存活总人数为 " + aliveCount + " 人。游戏正在激烈进行中！";
+      }
+
+      // 添加特殊角色提醒
+      if (hasSaint && isSaintDead) {
+        rulesApplied.push("⚠️ 检测到【圣徒】已死亡。如果是由于白天处决而死，则邪恶直接获胜！");
+      }
+      if (hasGoblin && isGoblinDead) {
+        rulesApplied.push("⚠️ 检测到【小精灵】已死亡。如果是在白天被处决且宣称是小精灵，则邪恶直接获胜！");
+      }
+      if (hasKlutz && isKlutzDead) {
+        rulesApplied.push("⚠️ 检测到【傻瓜】已死亡。如果他死时公开指向的存活玩家是邪恶阵营，则邪恶直接获胜！");
+      }
+      if (hasHeretic) {
+        rulesApplied.push("🚨 检测到【异教徒】在场！所有胜负判定条件完全颠倒（即原本输的阵营获胜）！");
+      }
+      if (hasMayor && isMayorAlive && aliveCount === 3 && aliveDemons.length > 0) {
+        rulesApplied.push("ℹ️ 提示：【市长】存活且当前存活人数为 3 人。如果今天白天没有发生处决，善良阵营将通过市长能力获胜。");
+      }
+    }
+
+    let playersHtml = "";
+    players.forEach(p => {
+      const isEvil = p.roleData && ['minion', 'demon'].includes(p.roleData.type);
+      const factionText = isEvil ? "🔴 邪恶" : "🟢 善良";
+      const factionColor = isEvil ? "#e74c3c" : "#2ecc71";
+      const statusText = p.dead ? "💀 已出局" : "🟢 存活";
+      const statusColor = p.dead ? "#95a5a6" : "#2ecc71";
+      const roleName = p.roleData ? p.roleData.name : "未知";
+      const roleColor = this.getRoleTypeColor(p.roleData?.type);
+      const roleBg = this.getRoleTypeBg(p.roleData?.type);
+
+      playersHtml += `
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; border-bottom: 1px solid rgba(255,255,255,0.03); font-size: 0.8rem;">
+          <div style="display: flex; align-items: center; gap: 8px; flex: 1.5;">
+            <span style="color: #888; font-weight: bold; width: 22px;">#${p.index + 1}</span>
+            <span style="color: #fff; font-weight: 500;">${p.name}</span>
+          </div>
+          <div style="flex: 1.5;">
+            <span style="font-size: 0.75rem; color: ${roleColor}; background: ${roleBg}; padding: 2px 6px; border-radius: 4px; border: 1px solid ${roleColor}2b;">
+              ${roleName}
+            </span>
+          </div>
+          <div style="flex: 1; text-align: center; color: ${factionColor}; font-weight: bold;">
+            ${factionText}
+          </div>
+          <div style="flex: 1; text-align: right; color: ${statusColor};">
+            ${statusText}
+          </div>
+        </div>
+      `;
+    });
+
+    const analysisEl = document.getElementById('game-over-analysis');
+    let rulesHtml = "";
+    if (rulesApplied.length > 0) {
+      rulesHtml = `
+        <div style="margin-top: 8px; font-size: 0.75rem; color: #fff;">
+          <div style="font-weight: bold; margin-bottom: 3px; color: hsl(var(--gold));">判定依据：</div>
+          <ul style="margin: 0; padding-left: 15px; display: flex; flex-direction: column; gap: 3px;">
+            ${rulesApplied.map(r => `<li>${r}</li>`).join('')}
+          </ul>
+        </div>
+      `;
+    }
+
+    analysisEl.innerHTML = `
+      <div style="border: 2px solid ${statusColor}; background: ${statusColor}14; padding: 12px; border-radius: 10px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 6px;">
+        <div style="font-size: 1.1rem; font-family: var(--font-title); font-weight: bold; color: ${statusColor}; text-shadow: 0 0 10px ${statusColor}4b;">
+          ${statusText}
+        </div>
+        <div style="font-size: 0.8rem; color: #e1e1e1; line-height: 1.4;">
+          ${recommendation}
+        </div>
+        ${rulesHtml}
+      </div>
+    `;
+
+    document.getElementById('game-over-players-list').innerHTML = playersHtml;
+    
+    const modal = document.getElementById('game-over-modal');
+    if (modal) modal.classList.add('active');
+  }
+
+  closeGameOverModal() {
+    const modal = document.getElementById('game-over-modal');
+    if (modal) modal.classList.remove('active');
+  }
+
+  declareWinner(faction) {
+    const name = faction === 'good' ? '🟢 善良阵营获胜！恭喜正义战胜邪恶！' : '🔴 邪恶阵营获胜！黑暗笼罩了魔典！';
+    this.addLog("宣告获胜", `说书人正式裁决并宣告：${name} 🏆`);
+    alert(`🏆 宣告裁决成功！\n\n${name}\n\n该结算已成功归档入全局系统日志。`);
+    this.closeGameOverModal();
+  }
+
+  openStorytellerLogModal() {
+    this.renderLogs();
+    const modal = document.getElementById('storyteller-log-modal');
+    if (modal) modal.classList.add('active');
+  }
+
+  closeStorytellerLogModal() {
+    const modal = document.getElementById('storyteller-log-modal');
     if (modal) modal.classList.remove('active');
   }
   
