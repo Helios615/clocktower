@@ -109,6 +109,16 @@ const ROLES_DATA = {
         ability: "如果没有人在白天被处决且只有三名玩家存活，善良阵营获胜。如果你在夜里死亡，可能会有另一名存活玩家代替你死亡。",
         abilityType: "passive"
       },
+      amnesiac: {
+        name: "失忆者",
+        en: "Amnesiac",
+        type: "townsfolk",
+        ability: "你不知道自己的技能是什么。每个白天，你可以私下向说书人猜测你的技能：你会得知你的猜测有多接近真实技能。",
+        wakeFirst: "唤醒失忆者。说书人进行自定义的夜间交互（或给其相关信息），然后让他闭眼。",
+        wakeOther: "唤醒失忆者。说书人进行自定义的夜间交互（或给其相关信息），然后让他闭眼。",
+        firstNight: 162,
+        otherNight: 315
+      },
       // 外来者 (Outsiders)
       butler: {
         name: "管家",
@@ -298,6 +308,16 @@ const ROLES_DATA = {
         type: "townsfolk",
         ability: "当你首次死亡时，你不会死亡（保留你的存活标记，该免死特效仅触发一次）。",
         abilityType: "passive"
+      },
+      amnesiac: {
+        name: "失忆者",
+        en: "Amnesiac",
+        type: "townsfolk",
+        ability: "你不知道自己的技能是什么。每个白天，你可以私下向说书人猜测你的技能：你会得知你的猜测有多接近真实技能。",
+        wakeFirst: "唤醒失忆者。说书人进行自定义的夜间交互（或给其相关信息），然后让他闭眼。",
+        wakeOther: "唤醒失忆者。说书人进行自定义的夜间交互（或给其相关信息），然后让他闭眼。",
+        firstNight: 162,
+        otherNight: 315
       },
       // 外来者
       tinker: {
@@ -520,6 +540,16 @@ const ROLES_DATA = {
         wakeOther: "如果贤者今晚被恶魔杀害：唤醒他，向其展示两名玩家（其中一个是恶魔）。",
         otherNight: 170
       },
+      amnesiac: {
+        name: "失忆者",
+        en: "Amnesiac",
+        type: "townsfolk",
+        ability: "你不知道自己的技能是什么。每个白天，你可以私下向说书人猜测你的技能：你会得知你的猜测有多接近真实技能。",
+        wakeFirst: "唤醒失忆者。说书人进行自定义的夜间交互（或给其相关信息），然后让他闭眼。",
+        wakeOther: "唤醒失忆者。说书人进行自定义的夜间交互（或给其相关信息），然后让他闭眼。",
+        firstNight: 162,
+        otherNight: 315
+      },
       // 外来者
       mutant: {
         name: "畸形秀演员",
@@ -676,6 +706,16 @@ const ROLES_DATA = {
         wakeOther: "如果守鸦人今晚被恶魔杀死：唤醒他，让他指向一名玩家，向他展示该玩家的角色标记。",
         otherNight: 170
       },
+      amnesiac: {
+        name: "失忆者",
+        en: "Amnesiac",
+        type: "townsfolk",
+        ability: "你不知道自己的技能是什么。每个白天，你可以私下向说书人猜测你的技能：你会得知你的猜测有多接近真实技能。",
+        wakeFirst: "唤醒失忆者。说书人进行自定义的夜间交互（或给其相关信息），然后让他闭眼。",
+        wakeOther: "唤醒失忆者。说书人进行自定义的夜间交互（或给其相关信息），然后让他闭眼。",
+        firstNight: 162,
+        otherNight: 315
+      },
       // 外来者 (Outsiders)
       heretic: {
         name: "异端分子",
@@ -773,6 +813,7 @@ const MASTER_NIGHT_ORDER = {
     fortuneteller: 150,
     butler: 160,
     lunatic: 165, // Add Lunatic (疯子) here
+    amnesiac: 162,
     godfather: 170,
     pukka: 180,
     dreamer: 190,
@@ -845,6 +886,7 @@ const MASTER_NIGHT_ORDER = {
     mathematician: 280,
     juggler: 300,
     butler: 310,
+    amnesiac: 315,
     seamstress: 320,
     spy: 330
   }

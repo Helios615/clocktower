@@ -30,7 +30,9 @@ class AppController {
       fortuneTellerRedHerring: "", // 占卜师宿敌 (红鲱鱼) 玩家索引
       nightRecords: {},             // 历夜说书人备忘历史记录
       fangguJumped: false,          // 方古是否已经触发过外来者夺舍夺命变恶魔
-      godfatherModifier: 1          // 教父外来者变更偏好 (1 为 +1, -1 为 -1)
+      godfatherModifier: 1,         // 教父外来者变更偏好 (1 为 +1, -1 为 -1)
+      amnesiacSecretAbility: "",    // 失忆者设定的秘密技能
+      amnesiacGuesses: []           // 失忆者在白天的猜测记录
     };
 
     // 2. 状态映射配置 (标准人数身份分配)
@@ -1450,6 +1452,7 @@ class AppController {
     
     this.renderLogs();
     this.renderLastNightMemo();
+    this.renderAmnesiacMemo();
   }
 
   saveNightRecord(playerIndex, roleName, playerName, text) {
@@ -1582,6 +1585,93 @@ class AppController {
     } else {
       card.style.display = 'none';
     }
+  }
+
+  renderAmnesiacMemo() {
+    const card = document.getElementById('amnesiac-memo-card');
+    if (!card) return;
+
+    if (!this.state.players) {
+      card.style.display = 'none';
+      return;
+    }
+
+    const amnP = this.state.players.find(p => p.role === 'amnesiac');
+    if (amnP) {
+      card.style.display = 'block';
+      document.getElementById('amnesiac-player-name-title').innerText = `失忆者：${amnP.name} (座位 ${amnP.index + 1})`;
+      
+      const abilityInput = document.getElementById('amnesiac-secret-ability-input');
+      if (abilityInput && !abilityInput.dataset.focused) {
+        abilityInput.value = this.state.amnesiacSecretAbility || "";
+        
+        // Add a focus flag so we don't overwrite while user is typing
+        if (!abilityInput.dataset.eventAdded) {
+          abilityInput.addEventListener('focus', () => { abilityInput.dataset.focused = 'true'; });
+          abilityInput.addEventListener('blur', () => { delete abilityInput.dataset.focused; });
+          abilityInput.dataset.eventAdded = 'true';
+        }
+      }
+
+      // Render history
+      const historyContainer = document.getElementById('amnesiac-guesses-history');
+      if (historyContainer) {
+        const guesses = this.state.amnesiacGuesses || [];
+        if (guesses.length === 0) {
+          historyContainer.innerHTML = `<div style="color: hsl(var(--text-muted)); text-align: center; font-style: italic; padding: 5px 0;">暂无猜测记录</div>`;
+        } else {
+          historyContainer.innerHTML = guesses.map((g, idx) => `
+            <div style="background: rgba(255,255,255,0.02); padding: 6px 8px; border-radius: 4px; border-left: 3px solid #9b59b6; margin-bottom: 4px; display: flex; flex-direction: column; gap: 2px;">
+              <div style="display: flex; justify-content: space-between; font-size: 0.7rem; font-weight: bold; color: hsl(var(--gold));">
+                <span>📅 第 ${g.day} 天白天 猜测：</span>
+                <span style="color: #9b59b6;">${g.temp}</span>
+              </div>
+              <div style="color: #fff; line-height: 1.35; margin-top: 2px;">“ ${g.guess} ”</div>
+            </div>
+          `).join('');
+        }
+      }
+    } else {
+      card.style.display = 'none';
+    }
+  }
+
+  saveAmnesiacSecretAbility() {
+    const val = document.getElementById('amnesiac-secret-ability-input').value.trim();
+    this.state.amnesiacSecretAbility = val;
+    this.saveToLocalStorage();
+    alert("🔮 失忆者隐藏技能设定保存成功！说书人专属！");
+    this.addLog("说书人", `设定了失忆者的秘密技能为：${val || '未设定'}`);
+    this.renderGrimoireCircle();
+  }
+
+  saveAmnesiacGuess() {
+    const guessVal = document.getElementById('amnesiac-guess-input').value.trim();
+    const tempVal = document.getElementById('amnesiac-guess-temp').value;
+    if (!guessVal) {
+      alert("请输入失忆者的猜测内容！");
+      return;
+    }
+
+    if (!this.state.amnesiacGuesses) {
+      this.state.amnesiacGuesses = [];
+    }
+
+    this.state.amnesiacGuesses.push({
+      day: this.state.dayNumber,
+      guess: guessVal,
+      temp: tempVal
+    });
+
+    this.saveToLocalStorage();
+    
+    // Clear input
+    document.getElementById('amnesiac-guess-input').value = '';
+
+    alert(`🔮 成功记录失忆者第 ${this.state.dayNumber} 天猜测并提供反馈：${tempVal}`);
+    this.addLog("说书人", `记录了失忆者的第 ${this.state.dayNumber} 天猜测：“${guessVal}” — 反馈热度为：${tempVal}`);
+    
+    this.renderGrimoireCircle();
   }
 
   saveNightRecord(playerIndex, roleName, playerName, text) {
@@ -3903,6 +3993,58 @@ class AppController {
         this.saveToLocalStorage();
         originalSave();
       };
+    }
+
+    // amnesiac
+    else if (wakingKey === 'amnesiac') {
+      const isFirst = (this.state.dayNumber === 1);
+      
+      const infoDiv = document.createElement('div');
+      infoDiv.style.background = 'rgba(155, 89, 182, 0.1)';
+      infoDiv.style.border = '1px solid rgba(155, 89, 182, 0.3)';
+      infoDiv.style.padding = '10px';
+      infoDiv.style.borderRadius = '8px';
+      infoDiv.style.marginBottom = '10px';
+      infoDiv.style.color = '#fff';
+      infoDiv.style.fontSize = '0.9rem';
+      infoDiv.style.lineHeight = '1.4';
+      
+      const secretAbility = this.state.amnesiacSecretAbility || "(尚未设定隐藏技能，请白天在主页备忘录中设定)";
+      infoDiv.innerHTML = `🔮 <strong>【失忆者隐藏技能参考】</strong><br>您为失忆者设定的隐藏技能为：<br><span style="color: #9b59b6; font-weight: bold;">“ ${secretAbility} ”</span><br><br>👉 <strong>说书人夜间交互指引：</strong><br>请根据隐藏技能规则向失忆者提供相关信息（如手势、点人等），然后令其闭眼。`;
+      interactiveArea.appendChild(infoDiv);
+
+      // 提供本晚信息文本录入框
+      const infoTextRow = document.createElement('div');
+      infoTextRow.style.display = 'flex';
+      infoTextRow.style.flexDirection = 'column';
+      infoTextRow.style.gap = '4px';
+      
+      const lbl = document.createElement('span');
+      lbl.innerText = "✍️ 记录说书人今晚向失忆者提供的互动与信息：";
+      lbl.style.fontSize = '0.8rem';
+      lbl.style.color = 'hsl(var(--gold))';
+      lbl.style.fontWeight = 'bold';
+      infoTextRow.appendChild(lbl);
+
+      const infoText = document.createElement('textarea');
+      infoText.className = 'form-control';
+      infoText.rows = 2;
+      infoText.style.fontSize = '0.8rem';
+      infoText.placeholder = "例：向失忆者出示了【2】的手势（因为有2名邪恶玩家选择了他）...";
+      infoTextRow.appendChild(infoText);
+      interactiveArea.appendChild(infoTextRow);
+
+      const updateAmnesiacDraft = () => {
+        const val = infoText.value.trim();
+        if (val) {
+          setDraft(`失忆者被唤醒并进行了夜间交互，说书人反馈其隐藏技能信息：${val} 🔮`);
+        } else {
+          setDraft(`失忆者被唤醒并进行夜间技能交互（参考技能：“${secretAbility}”）。`);
+        }
+      };
+
+      infoText.oninput = updateAmnesiacDraft;
+      updateAmnesiacDraft();
     }
 
     // godfather
