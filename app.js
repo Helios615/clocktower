@@ -1495,6 +1495,9 @@ class AppController {
       text: text
     };
 
+    // Automatically set the current viewed night to this night so the carousel shows it
+    this.currentViewedNight = nightKey;
+
     // Also sync to currentNightRecord for backwards compatibility
     if (!this.state.currentNightRecord) {
       this.state.currentNightRecord = {};
@@ -1530,86 +1533,158 @@ class AppController {
 
     const hasRecords = this.state.nightRecords && Object.keys(this.state.nightRecords).length > 0;
     
-    if (hasRecords) {
-      card.style.display = 'block';
-      if (phaseText) {
-        phaseText.innerText = `📋 玩家行动与信息历史备忘`;
+    if (!hasRecords) {
+      card.style.display = 'none';
+      return;
+    }
+
+    card.style.display = 'block';
+
+    // 1. Get sorted list of nights (ascending, e.g. [1, 2])
+    const nights = Object.keys(this.state.nightRecords).map(Number).sort((a, b) => a - b);
+    
+    // 2. Default to the latest night if currentViewedNight is not set or invalid
+    if (this.currentViewedNight === undefined || this.currentViewedNight === null || !nights.includes(this.currentViewedNight)) {
+      this.currentViewedNight = nights[nights.length - 1]; // Set to latest night
+    }
+
+    container.innerHTML = '';
+
+    // 3. Create Navigation Header inside the container (or header area)
+    const navHeader = document.createElement('div');
+    navHeader.style.display = 'flex';
+    navHeader.style.alignItems = 'center';
+    navHeader.style.justifyContent = 'space-between';
+    navHeader.style.marginBottom = '10px';
+    navHeader.style.background = 'rgba(255, 255, 255, 0.05)';
+    navHeader.style.padding = '6px 12px';
+    navHeader.style.borderRadius = '6px';
+    navHeader.style.border = '1px solid rgba(255,255,255,0.05)';
+
+    // Left button
+    const leftBtn = document.createElement('button');
+    leftBtn.className = 'btn btn-secondary';
+    leftBtn.style.padding = '2px 8px';
+    leftBtn.style.fontSize = '0.75rem';
+    leftBtn.style.width = 'auto';
+    leftBtn.style.margin = '0';
+    leftBtn.innerHTML = '← 前一夜';
+    
+    const currentIndex = nights.indexOf(this.currentViewedNight);
+    if (currentIndex > 0) {
+      leftBtn.onclick = () => {
+        this.currentViewedNight = nights[currentIndex - 1];
+        this.renderLastNightMemo();
+      };
+    } else {
+      leftBtn.disabled = true;
+      leftBtn.style.opacity = '0.3';
+    }
+
+    // Title
+    const title = document.createElement('span');
+    title.style.fontSize = '0.8rem';
+    title.style.fontWeight = 'bold';
+    title.style.color = 'hsl(var(--gold))';
+    title.innerText = `★ 第 ${this.currentViewedNight} 夜记录 (${currentIndex + 1} / ${nights.length})`;
+
+    // Right button
+    const rightBtn = document.createElement('button');
+    rightBtn.className = 'btn btn-secondary';
+    rightBtn.style.padding = '2px 8px';
+    rightBtn.style.fontSize = '0.75rem';
+    rightBtn.style.width = 'auto';
+    rightBtn.style.margin = '0';
+    rightBtn.innerHTML = '后一夜 →';
+    
+    if (currentIndex < nights.length - 1) {
+      rightBtn.onclick = () => {
+        this.currentViewedNight = nights[currentIndex + 1];
+        this.renderLastNightMemo();
+      };
+    } else {
+      rightBtn.disabled = true;
+      rightBtn.style.opacity = '0.3';
+    }
+
+    navHeader.appendChild(leftBtn);
+    navHeader.appendChild(title);
+    navHeader.appendChild(rightBtn);
+    container.appendChild(navHeader);
+
+    // 4. Render records for the selected night
+    const records = this.state.nightRecords[this.currentViewedNight] || {};
+    const recordKeys = Object.keys(records);
+
+    if (recordKeys.length === 0) {
+      const emptyMsg = document.createElement('div');
+      emptyMsg.style.color = 'hsl(var(--text-muted))';
+      emptyMsg.style.textAlign = 'center';
+      emptyMsg.style.fontStyle = 'italic';
+      emptyMsg.style.padding = '15px 0';
+      emptyMsg.innerText = '该夜晚未录入任何行动数据';
+      container.appendChild(emptyMsg);
+      return;
+    }
+
+    // Render list of player actions for this specific night
+    const slideWrapper = document.createElement('div');
+    slideWrapper.style.display = 'flex';
+    slideWrapper.style.flexDirection = 'column';
+    slideWrapper.style.gap = '8px';
+    container.appendChild(slideWrapper);
+
+    recordKeys.forEach(playerIdxKey => {
+      const record = records[playerIdxKey];
+      const playerObj = this.state.players[playerIdxKey];
+      if (!playerObj) return;
+
+      const row = document.createElement('div');
+      row.className = 'memo-entry-row';
+      row.style.display = 'flex';
+      row.style.flexDirection = 'column';
+      row.style.gap = '4px';
+      row.style.padding = '8px 10px';
+      row.style.borderRadius = '6px';
+      row.style.background = 'rgba(0, 0, 0, 0.25)';
+      row.style.borderLeft = `3px solid ${this.getRoleTypeColor(playerObj.roleData ? playerObj.roleData.type : 'townsfolk')}`;
+      
+      const header = document.createElement('div');
+      header.style.display = 'flex';
+      header.style.justifyContent = 'space-between';
+      header.style.fontSize = '0.75rem';
+      header.style.fontWeight = 'bold';
+      
+      const nameSpan = document.createElement('span');
+      nameSpan.innerText = `${record.roleName} (${record.playerName})`;
+      nameSpan.style.color = this.getRoleTypeColor(playerObj.roleData ? playerObj.roleData.type : 'townsfolk');
+      
+      const statusSpan = document.createElement('span');
+      let statuses = [];
+      if (playerObj.poisoned) statuses.push('🧪中毒');
+      if (playerObj.drunk) statuses.push('🍺醉酒');
+      if (statuses.length > 0) {
+        statusSpan.innerText = ` [${statuses.join('/')}下获取]`;
+        statusSpan.style.color = '#e74c3c';
       }
       
-      container.innerHTML = '';
+      header.appendChild(nameSpan);
+      header.appendChild(statusSpan);
       
-      // Sort nights descending to keep the most recent night at the top
-      const nights = Object.keys(this.state.nightRecords).map(Number).sort((a, b) => b - a);
+      const content = document.createElement('div');
+      content.style.fontSize = '0.8rem';
+      content.style.color = '#e5e7eb';
+      content.style.wordBreak = 'break-all';
+      content.style.lineHeight = '1.35';
+      content.innerText = record.text;
       
-      nights.forEach(nightNum => {
-        const nightGroup = document.createElement('div');
-        nightGroup.style.marginBottom = '12px';
-        
-        const groupTitle = document.createElement('div');
-        groupTitle.style.fontSize = '0.8rem';
-        groupTitle.style.fontWeight = 'bold';
-        groupTitle.style.color = 'hsl(var(--gold))';
-        groupTitle.style.borderBottom = '1px solid rgba(212, 175, 55, 0.2)';
-        groupTitle.style.paddingBottom = '4px';
-        groupTitle.style.marginBottom = '6px';
-        groupTitle.innerText = `★ 第 ${nightNum} 夜记录`;
-        nightGroup.appendChild(groupTitle);
-        
-        const records = this.state.nightRecords[nightNum];
-        Object.keys(records).forEach(playerIdxKey => {
-          const record = records[playerIdxKey];
-          const playerObj = this.state.players[playerIdxKey];
-          if (!playerObj) return;
+      row.appendChild(header);
+      row.appendChild(content);
+      slideWrapper.appendChild(row);
+    });
 
-          const row = document.createElement('div');
-          row.className = 'memo-entry-row';
-          row.style.display = 'flex';
-          row.style.flexDirection = 'column';
-          row.style.gap = '4px';
-          row.style.padding = '8px 10px';
-          row.style.borderRadius = '6px';
-          row.style.background = 'rgba(0, 0, 0, 0.2)';
-          row.style.borderLeft = `3px solid ${this.getRoleTypeColor(playerObj.roleData.type)}`;
-          row.style.marginBottom = '6px';
-          
-          const header = document.createElement('div');
-          header.style.display = 'flex';
-          header.style.justifyContent = 'space-between';
-          header.style.fontSize = '0.75rem';
-          header.style.fontWeight = 'bold';
-          
-          const nameSpan = document.createElement('span');
-          nameSpan.innerText = `${record.roleName} (${record.playerName})`;
-          nameSpan.style.color = this.getRoleTypeColor(playerObj.roleData.type);
-          
-          const statusSpan = document.createElement('span');
-          let statuses = [];
-          if (playerObj.poisoned) statuses.push('🧪中毒');
-          if (playerObj.drunk) statuses.push('🍺醉酒');
-          if (statuses.length > 0) {
-            statusSpan.innerText = ` [${statuses.join('/')}下获取]`;
-            statusSpan.style.color = '#e74c3c';
-          }
-          
-          header.appendChild(nameSpan);
-          header.appendChild(statusSpan);
-          
-          const content = document.createElement('div');
-          content.style.fontSize = '0.8rem';
-          content.style.color = '#e5e7eb';
-          content.style.wordBreak = 'break-all';
-          content.style.lineHeight = '1.35';
-          content.innerText = record.text;
-          
-          row.appendChild(header);
-          row.appendChild(content);
-          nightGroup.appendChild(row);
-        });
-        
-        container.appendChild(nightGroup);
-      });
-    } else {
-      card.style.display = 'none';
+    if (phaseText) {
+      phaseText.innerText = `历史回顾`;
     }
   }
 
