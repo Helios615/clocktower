@@ -619,6 +619,28 @@
     </div>
   </div>
 
+  <!-- 模态框 7: 给恶魔出示的三伪装展示板 (Demon Bluff Show Modal) -->
+  <div id="demon-show-modal" class="night-modal-backdrop">
+    <div class="night-modal-card" style="max-width: 500px; width: 92vw; border-color: rgba(231, 76, 60, 0.3); background: rgba(25, 15, 15, 0.95); box-shadow: 0 0 25px rgba(231, 76, 60, 0.25);">
+      <div class="night-step-header" style="display: flex; justify-content: center; align-items: center; border-bottom: 1px solid rgba(231, 76, 60, 0.2); padding-bottom: 12px; margin-bottom: 15px;">
+        <h3 style="font-family: var(--font-title); color: #ff6b6b; margin: 0; font-size: 1.3rem; letter-spacing: 1px;">😈 恶魔首夜信息 (Demon Info)</h3>
+      </div>
+      
+      <p style="font-size: 0.85rem; color: #fff; text-align: center; margin-bottom: 15px; font-weight: bold; line-height: 1.4;">
+        请恶魔查看以下三个【不在场】的善良阵营角色（您的伪装）：
+      </p>
+      
+      <!-- 三个角色的卡牌展示容器 -->
+      <div id="demon-show-roles-container" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
+        <!-- Dynamically rendered roles -->
+      </div>
+      
+      <div style="display: flex; justify-content: center;">
+        <button class="btn" onclick="app.closeDemonShowModalAndAdvance();" style="width: auto; padding: 10px 24px; font-size: 0.9rem; font-weight: bold; border-radius: 8px; border: none; background: linear-gradient(135deg, #c0392b 0%, #962d22 100%); color: #fff; box-shadow: 0 4px 15px rgba(192, 57, 43, 0.4); cursor: pointer;">✕ 我已看清，闭眼 😴</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Core Javascript File -->
   <script src="roles.js"></script>
   <script src="app.js"></script>

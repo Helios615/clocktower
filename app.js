@@ -2650,11 +2650,14 @@ class AppController {
 
     // Select 3 random roles as recommended initial choice
     const countToPick = Math.min(3, outOfPlayGoodRoles.length);
-    const shuffled = [...outOfPlayGoodRoles].sort(() => 0.5 - Math.random());
-    const initialRecommended = shuffled.slice(0, countToPick).map(r => r.key);
+    if (!this.demonSelectedBluffs || this.demonSelectedBluffs.size === 0) {
+      const shuffled = [...outOfPlayGoodRoles].sort(() => 0.5 - Math.random());
+      const initialRecommended = shuffled.slice(0, countToPick).map(r => r.key);
+      this.demonSelectedBluffs = new Set(initialRecommended);
+    }
 
     // Keep track of which ones are currently selected by Storyteller
-    const activeSelected = new Set(initialRecommended);
+    const activeSelected = this.demonSelectedBluffs;
 
     const renderRecommendedList = () => {
       rolesContainer.innerHTML = '';
@@ -4149,6 +4152,103 @@ class AppController {
   }
 
   nextNightStep() {
+    const guide = this.state.nightGuide;
+    const step = guide.steps[guide.currentIndex];
+
+    // 如果当前处于首夜“爪牙互认/确认恶魔”步骤，并且还未唤起恶魔展示弹窗
+    if (step && step.type === 'system-info' && step.name === '爪牙互认/确认恶魔') {
+      if (this.openDemonShowModal()) {
+        return; // 拦截向导前进，等待说书人出示并关闭弹窗
+      }
+    }
+
+    if (guide.currentIndex < guide.steps.length - 1) {
+      guide.currentIndex++;
+      this.renderNightStep();
+    } else {
+      // 流程完结，天明拂晓
+      this.closeNightGuide();
+      this.state.phase = 'day';
+      this.state.dayNumber++;
+      this.addLog("系统", `黎明拂晓，天亮了。进入第 ${this.state.dayNumber} 天白天！说书人请宣布昨晚死讯并开始日间公聊提名。`);
+      this.renderGrimoireCircle();
+      this.saveToLocalStorage();
+    }
+  }
+
+  openDemonShowModal() {
+    const modal = document.getElementById('demon-show-modal');
+    const container = document.getElementById('demon-show-roles-container');
+    if (!modal || !container) return false;
+
+    // 获取说书人选定的三个伪装角色
+    if (!this.demonSelectedBluffs || this.demonSelectedBluffs.size === 0) {
+      // 降级：随机选3个
+      const outOfPlay = this.getOutOfPlayGoodRoles();
+      const count = Math.min(3, outOfPlay.length);
+      const shuffled = [...outOfPlay].sort(() => 0.5 - Math.random());
+      this.demonSelectedBluffs = new Set(shuffled.slice(0, count).map(r => r.key));
+    }
+
+    container.innerHTML = '';
+
+    const roleKeys = Array.from(this.demonSelectedBluffs);
+    roleKeys.forEach(key => {
+      const char = this.findRoleData(key);
+      if (!char) return;
+
+      const card = document.createElement('div');
+      card.style.background = 'rgba(0, 0, 0, 0.4)';
+      card.style.padding = '10px 14px';
+      card.style.borderRadius = '8px';
+      card.style.border = '1px solid rgba(231, 76, 60, 0.2)';
+      card.style.borderLeft = `4px solid ${this.getRoleTypeColor(char.type)}`;
+      card.style.display = 'flex';
+      card.style.flexDirection = 'column';
+      card.style.gap = '4px';
+
+      const nameRow = document.createElement('div');
+      nameRow.style.display = 'flex';
+      nameRow.style.justifyContent = 'space-between';
+      nameRow.style.alignItems = 'baseline';
+
+      const nameSpan = document.createElement('span');
+      nameSpan.style.fontFamily = 'var(--font-title)';
+      nameSpan.style.fontWeight = 'bold';
+      nameSpan.style.fontSize = '0.95rem';
+      nameSpan.style.color = '#fff';
+      nameSpan.innerText = char.name;
+
+      const typeSpan = document.createElement('span');
+      typeSpan.style.fontSize = '0.7rem';
+      typeSpan.style.color = this.getRoleTypeColor(char.type);
+      typeSpan.innerText = char.type === 'townsfolk' ? '村民' : '外来者';
+
+      nameRow.appendChild(nameSpan);
+      nameRow.appendChild(typeSpan);
+      card.appendChild(nameRow);
+
+      const descDiv = document.createElement('div');
+      descDiv.style.fontSize = '0.75rem';
+      descDiv.style.color = 'rgba(255, 255, 255, 0.8)';
+      descDiv.style.lineHeight = '1.4';
+      descDiv.innerText = char.ability;
+      card.appendChild(descDiv);
+
+      container.appendChild(card);
+    });
+
+    modal.classList.add('active');
+    return true;
+  }
+
+  closeDemonShowModalAndAdvance() {
+    const modal = document.getElementById('demon-show-modal');
+    if (modal) {
+      modal.classList.remove('active');
+    }
+
+    // 继续前进至下个夜间步骤
     const guide = this.state.nightGuide;
     if (guide.currentIndex < guide.steps.length - 1) {
       guide.currentIndex++;
