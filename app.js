@@ -87,13 +87,32 @@ class AppController {
         const decodedString = decodeURIComponent(escape(atob(pParam)));
         const parts = decodedString.split('::');
         
-        if (parts.length >= 5) {
+        if (parts.length >= 3) {
           const playerName = parts[0];
           const roleKey = parts[1];
-          const roleName = parts[2];
-          const roleType = parts[3];
-          const roleDesc = parts[4];
-          const scriptKey = parts[5] || 'tb';
+          let roleName = "";
+          let roleType = "";
+          let roleDesc = "";
+          let scriptKey = "tb";
+
+          if (parts.length >= 5) {
+            roleName = parts[2];
+            roleType = parts[3];
+            roleDesc = parts[4];
+            scriptKey = parts[5] || 'tb';
+          } else {
+            scriptKey = parts[2] || 'tb';
+            const charData = this.findRoleData(roleKey);
+            if (charData) {
+              roleName = charData.name;
+              roleType = charData.type;
+              roleDesc = charData.ability;
+            } else {
+              roleName = roleKey;
+              roleType = "townsfolk";
+              roleDesc = "未知技能描述";
+            }
+          }
           
           this.playerViewScript = scriptKey;
 
@@ -1217,13 +1236,23 @@ class AppController {
       }
     }
 
-    // 序列化编码玩家数据至 URL 参数以供完全解密
-    const secretPayload = `${p.name}::${roleKey}::${roleName}::${roleType}::${roleAbility}::${this.state.script}`;
+    // 序列化编码玩家数据至 URL 参数以供完全解密 (精简格式以极大降低二维码密度，提升扫码识别率)
+    const secretPayload = `${p.name}::${roleKey}::${this.state.script}`;
     // 使用标准 UTF-8 Base64 安全打包
     const obfuscated = btoa(unescape(encodeURIComponent(secretPayload)));
 
-    // 拼接成指向我们该站的绝对路径
-    const rawLink = `${window.location.origin}${window.location.pathname}?p=${obfuscated}`;
+    // 拼接成绝对路径
+    let baseLink = `${window.location.origin}${window.location.pathname}`;
+    
+    // 如果在本地运行 (file:/// 或 localhost)，重定向至公网 GitHub Pages URL，以便手机能扫码访问
+    const isLocal = window.location.hostname === 'localhost' || 
+                    window.location.hostname === '127.0.0.1' || 
+                    window.location.protocol === 'file:' ||
+                    window.location.origin === 'null';
+    if (isLocal) {
+      baseLink = 'https://helios615.github.io/clocktower/index.html';
+    }
+    const rawLink = `${baseLink}?p=${obfuscated}`;
     
     // 使用稳定的 serverless api.qrserver.com 进行轻量生成
     const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(rawLink)}`;
@@ -2457,6 +2486,10 @@ class AppController {
       charNameEl.style.color = 'hsl(var(--gold))';
       abilityEl.innerText = step.ability;
       gestureEl.innerText = step.gesture;
+
+      if (step.name === '爪牙互认/确认恶魔') {
+        this.renderDemonMinionInfoStep(actionEl);
+      }
     } else {
       charNameEl.innerText = `${step.name} (${step.playerName})`;
       charNameEl.style.color = this.getRoleTypeColor(step.role.type);
@@ -2470,6 +2503,267 @@ class AppController {
     // 控制上一步下一步按钮状态
     document.getElementById('btn-night-prev').disabled = (guide.currentIndex === 0);
     document.getElementById('btn-night-next-step').innerText = (guide.currentIndex === guide.steps.length - 1) ? "黎明到来 ☀️" : "下一步 ➔";
+  }
+
+  getOutOfPlayGoodRoles() {
+    // 1. Get all good roles in play
+    const goodRolesInPlay = new Set();
+    this.state.players.forEach(p => {
+      if (p.role) goodRolesInPlay.add(p.role);
+      if (p.drunkRole) goodRolesInPlay.add(p.drunkRole);
+      if (p.marionetteRole) goodRolesInPlay.add(p.marionetteRole);
+    });
+
+    // 2. Get all available good roles for the script / custom pool
+    const allAvailableGoodRoles = [];
+    if (this.state.customMix) {
+      // Custom mix: use pool
+      this.state.pool.forEach(key => {
+        const char = this.findRoleData(key);
+        if (char && (char.type === 'townsfolk' || char.type === 'outsider')) {
+          allAvailableGoodRoles.push({ key, ...char });
+        }
+      });
+    } else {
+      // Standard script
+      const scriptData = ROLES_DATA[this.state.script];
+      if (scriptData && scriptData.characters) {
+        Object.keys(scriptData.characters).forEach(key => {
+          const char = scriptData.characters[key];
+          if (char && (char.type === 'townsfolk' || char.type === 'outsider')) {
+            allAvailableGoodRoles.push({ key, ...char });
+          }
+        });
+      }
+    }
+
+    // 3. Filter out those that are in play
+    return allAvailableGoodRoles.filter(char => !goodRolesInPlay.has(char.key));
+  }
+
+  renderDemonMinionInfoStep(container) {
+    // 1. Get Demons, Minions and Lunatic in play
+    const demons = [];
+    const minions = [];
+    let lunatic = null;
+
+    this.state.players.forEach(p => {
+      const char = this.findRoleData(p.role);
+      if (char) {
+        if (char.type === 'demon') {
+          demons.push(p);
+        } else if (char.type === 'minion') {
+          minions.push(p);
+        } else if (p.role === 'lunatic') {
+          lunatic = p;
+        }
+      }
+    });
+
+    const wrapper = document.createElement('div');
+    wrapper.style.display = 'flex';
+    wrapper.style.flexDirection = 'column';
+    wrapper.style.gap = '12px';
+    wrapper.style.marginTop = '15px';
+    wrapper.style.background = 'rgba(255, 255, 255, 0.03)';
+    wrapper.style.padding = '12px';
+    wrapper.style.borderRadius = '10px';
+    wrapper.style.border = '1px solid rgba(212, 175, 55, 0.15)';
+    container.appendChild(wrapper);
+
+    // Title: Evil Camp Overview
+    const title = document.createElement('div');
+    title.style.fontSize = '0.9rem';
+    title.style.fontWeight = 'bold';
+    title.style.color = 'hsl(var(--gold))';
+    title.innerText = '😈 邪恶阵营与特殊角色在场情况：';
+    wrapper.appendChild(title);
+
+    // Show Demon and Minions
+    const infoList = document.createElement('div');
+    infoList.style.fontSize = '0.8rem';
+    infoList.style.lineHeight = '1.5';
+    infoList.style.display = 'flex';
+    infoList.style.flexDirection = 'column';
+    infoList.style.gap = '4px';
+    wrapper.appendChild(infoList);
+
+    if (demons.length > 0) {
+      demons.forEach(d => {
+        const item = document.createElement('div');
+        item.innerHTML = `🔥 <strong>恶魔</strong>: ${d.index + 1}号 [${d.name}] — 【${this.findRoleData(d.role).name}】`;
+        item.style.color = '#ff6b6b';
+        infoList.appendChild(item);
+      });
+    } else {
+      const item = document.createElement('div');
+      item.innerText = `🔥 恶魔: 暂无存活或配置的恶魔角色`;
+      item.style.color = '#ff6b6b';
+      infoList.appendChild(item);
+    }
+
+    if (minions.length > 0) {
+      minions.forEach(m => {
+        const item = document.createElement('div');
+        item.innerHTML = `💀 <strong>爪牙</strong>: ${m.index + 1}号 [${m.name}] — 【${this.findRoleData(m.role).name}】`;
+        item.style.color = '#ec7063';
+        infoList.appendChild(item);
+      });
+    } else {
+      const item = document.createElement('div');
+      item.innerText = `💀 爪牙: 无爪牙`;
+      item.style.color = '#ec7063';
+      infoList.appendChild(item);
+    }
+
+    if (lunatic) {
+      const item = document.createElement('div');
+      item.innerHTML = `🤡 <strong>疯子</strong>: ${lunatic.index + 1}号 [${lunatic.name}] (他自以为是恶魔！请向其提供虚假的爪牙/恶魔交互数据)`;
+      item.style.color = '#f5b041';
+      infoList.appendChild(item);
+    }
+
+    // Divider
+    const hr = document.createElement('hr');
+    hr.style.border = 'none';
+    hr.style.borderTop = '1px solid rgba(255, 255, 255, 0.08)';
+    hr.style.margin = '4px 0';
+    wrapper.appendChild(hr);
+
+    // Section 2: Out of Play Good Roles
+    const outOfPlayGoodRoles = this.getOutOfPlayGoodRoles();
+
+    const choiceTitle = document.createElement('div');
+    choiceTitle.style.fontSize = '0.85rem';
+    choiceTitle.style.fontWeight = 'bold';
+    choiceTitle.style.color = 'hsl(var(--gold))';
+    choiceTitle.innerText = '💡 不在场的善良角色 (恶魔首夜三伪装推荐)：';
+    wrapper.appendChild(choiceTitle);
+
+    const rolesContainer = document.createElement('div');
+    rolesContainer.style.display = 'flex';
+    rolesContainer.style.flexDirection = 'column';
+    rolesContainer.style.gap = '8px';
+    wrapper.appendChild(rolesContainer);
+
+    // Check if we have enough out-of-play good roles
+    if (outOfPlayGoodRoles.length === 0) {
+      const emptyMsg = document.createElement('div');
+      emptyMsg.style.fontSize = '0.75rem';
+      emptyMsg.style.color = 'hsl(var(--text-muted))';
+      emptyMsg.innerText = '本局没有富余的不在场善良角色。';
+      rolesContainer.appendChild(emptyMsg);
+      return;
+    }
+
+    // Select 3 random roles as recommended initial choice
+    const countToPick = Math.min(3, outOfPlayGoodRoles.length);
+    const shuffled = [...outOfPlayGoodRoles].sort(() => 0.5 - Math.random());
+    const initialRecommended = shuffled.slice(0, countToPick).map(r => r.key);
+
+    // Keep track of which ones are currently selected by Storyteller
+    const activeSelected = new Set(initialRecommended);
+
+    const renderRecommendedList = () => {
+      rolesContainer.innerHTML = '';
+      
+      const badgeList = document.createElement('div');
+      badgeList.style.display = 'flex';
+      badgeList.style.flexWrap = 'wrap';
+      badgeList.style.gap = '8px';
+      rolesContainer.appendChild(badgeList);
+
+      outOfPlayGoodRoles.forEach(r => {
+        const badge = document.createElement('div');
+        badge.style.padding = '6px 12px';
+        badge.style.fontSize = '0.75rem';
+        badge.style.borderRadius = '20px';
+        badge.style.cursor = 'pointer';
+        badge.style.border = '1px solid rgba(255,255,255,0.1)';
+        badge.style.background = activeSelected.has(r.key) ? 'rgba(212, 175, 55, 0.25)' : 'rgba(0,0,0,0.2)';
+        badge.style.borderColor = activeSelected.has(r.key) ? 'hsl(var(--gold))' : 'rgba(255,255,255,0.15)';
+        badge.style.color = activeSelected.has(r.key) ? 'hsl(var(--gold))' : '#fff';
+        badge.style.transition = 'all 0.2s ease';
+        badge.innerText = `${r.name} (${r.type === 'townsfolk' ? '村民' : '外来者'})`;
+
+        badge.onclick = () => {
+          if (activeSelected.has(r.key)) {
+            activeSelected.delete(r.key);
+          } else {
+            if (activeSelected.size < 3) {
+              activeSelected.add(r.key);
+            } else {
+              alert("最多只能选择 3 个不在场的善良角色作为伪装！");
+            }
+          }
+          renderRecommendedList();
+        };
+
+        badgeList.appendChild(badge);
+      });
+
+      // Show action info
+      const actionText = document.createElement('div');
+      actionText.style.background = 'rgba(0,0,0,0.3)';
+      actionText.style.padding = '8px';
+      actionText.style.borderRadius = '8px';
+      actionText.style.fontSize = '0.75rem';
+      actionText.style.lineHeight = '1.4';
+      actionText.style.color = '#fff';
+      
+      const selectedNames = Array.from(activeSelected).map(k => {
+        const match = outOfPlayGoodRoles.find(r => r.key === k);
+        return match ? `【${match.name}】` : '';
+      }).filter(Boolean);
+
+      actionText.innerHTML = `👉 <strong>说书人行动指示</strong>：唤醒恶魔，先向其指认所有邪恶爪牙，然后在卡牌上向其展示这三个不在场善良角色：${selectedNames.length > 0 ? selectedNames.join('、') : '（暂未选择角色，请在上方点选，最多3个）'}`;
+      rolesContainer.appendChild(actionText);
+
+      // Buttons row
+      const btnRow = document.createElement('div');
+      btnRow.style.display = 'flex';
+      btnRow.style.gap = '8px';
+      rolesContainer.appendChild(btnRow);
+
+      // Save to logs button
+      const saveBtn = document.createElement('button');
+      saveBtn.className = 'btn btn-gold';
+      saveBtn.style.fontSize = '0.75rem';
+      saveBtn.style.padding = '6px 12px';
+      saveBtn.style.flex = '1';
+      saveBtn.innerText = '💾 保存并记录这三个角色到日志';
+      saveBtn.onclick = () => {
+        if (activeSelected.size === 0) {
+          alert("请在上方至少选择 1 个角色进行记录！");
+          return;
+        }
+        const selectedNamesStr = Array.from(activeSelected).map(k => {
+          const match = outOfPlayGoodRoles.find(r => r.key === k);
+          return match ? match.name : '';
+        }).filter(Boolean).join('、');
+
+        this.addLog("说书人", `首夜已向恶魔指点确认爪牙，并向恶魔出示了 3 个不在场的善良角色作为伪装：${selectedNamesStr}`);
+        alert(`已成功将不在场角色 [${selectedNamesStr}] 记入说书人秘密日志！`);
+      };
+      btnRow.appendChild(saveBtn);
+
+      // Reshuffle button
+      const reshuffleBtn = document.createElement('button');
+      reshuffleBtn.className = 'btn btn-secondary';
+      reshuffleBtn.style.fontSize = '0.75rem';
+      reshuffleBtn.style.padding = '6px 12px';
+      reshuffleBtn.style.width = 'auto';
+      reshuffleBtn.innerText = '🎲 随机换一组';
+      reshuffleBtn.onclick = () => {
+        const newShuffled = [...outOfPlayGoodRoles].sort(() => 0.5 - Math.random());
+        activeSelected.clear();
+        newShuffled.slice(0, Math.min(3, outOfPlayGoodRoles.length)).forEach(r => activeSelected.add(r.key));
+        renderRecommendedList();
+      };
+      btnRow.appendChild(reshuffleBtn);
+    };
+
+    renderRecommendedList();
   }
 
   isEvilPlayer(player) {
