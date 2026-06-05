@@ -4068,23 +4068,47 @@ class AppController {
     placeholder.innerText = "-- 请选择角色 --";
     select.appendChild(placeholder);
     
-    // Scan pool roles
-    this.state.pool.forEach(key => {
-      const char = this.findRoleData(key);
-      if (char) {
-        if (filterType === 'townsfolk' && char.type !== 'townsfolk') return;
-        if (filterType === 'outsider' && char.type !== 'outsider') return;
-        if (filterType === 'minion' && char.type !== 'minion') return;
-        if (filterType === 'demon' && char.type !== 'demon') return;
-        
-        if (filterType === 'good' && (char.type !== 'townsfolk' && char.type !== 'outsider')) return;
-        if (filterType === 'evil' && (char.type !== 'minion' && char.type !== 'demon')) return;
-        
-        const opt = document.createElement('option');
-        opt.value = key;
-        opt.innerText = char.name;
-        select.appendChild(opt);
+    // 获取候选角色集合 (精简扫码后，支持从整个剧本或全局所有角色中选择角色展示给玩家，以便说书人给醉酒/中毒玩家提供非本局池子内的虚假角色)
+    const candidates = [];
+    const addedKeys = new Set();
+    
+    if (this.state.customMix) {
+      // 混编：扫描全局所有剧本的角色
+      Object.keys(ROLES_DATA).forEach(scriptKey => {
+        const charMap = ROLES_DATA[scriptKey].characters;
+        Object.keys(charMap).forEach(key => {
+          if (!addedKeys.has(key)) {
+            addedKeys.add(key);
+            candidates.push({ key, ...charMap[key] });
+          }
+        });
+      });
+    } else {
+      // 普通剧本：扫描当前剧本的全部角色
+      const scriptData = ROLES_DATA[this.state.script];
+      if (scriptData && scriptData.characters) {
+        Object.keys(scriptData.characters).forEach(key => {
+          if (!addedKeys.has(key)) {
+            addedKeys.add(key);
+            candidates.push({ key, ...scriptData.characters[key] });
+          }
+        });
       }
+    }
+
+    candidates.forEach(char => {
+      if (filterType === 'townsfolk' && char.type !== 'townsfolk') return;
+      if (filterType === 'outsider' && char.type !== 'outsider') return;
+      if (filterType === 'minion' && char.type !== 'minion') return;
+      if (filterType === 'demon' && char.type !== 'demon') return;
+      
+      if (filterType === 'good' && (char.type !== 'townsfolk' && char.type !== 'outsider')) return;
+      if (filterType === 'evil' && (char.type !== 'minion' && char.type !== 'demon')) return;
+      
+      const opt = document.createElement('option');
+      opt.value = char.key;
+      opt.innerText = char.name;
+      select.appendChild(opt);
     });
     
     row.appendChild(lbl);
