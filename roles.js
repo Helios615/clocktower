@@ -447,10 +447,10 @@ const ROLES_DATA = {
         otherNight: 250
       },
       snakecharmer: {
-        name: "蛇魅",
+        name: "舞蛇人",
         en: "Snake Charmer",
         type: "townsfolk",
-        ability: "每个夜晚，选择一名存活玩家：如果是恶魔，你与他交换角色与阵营，并且他（现在的蛇魅）陷入严重中毒状态。",
+        ability: "每个夜晚，选择一名存活玩家：如果是恶魔，你与他交换角色与阵营，并且他（现在的舞蛇人）陷入严重中毒状态。",
         wakeFirst: "选择一名存活玩家。如果是恶魔，互换两人的角色卡与阵营，并标记原恶魔为【严重中毒】；把新恶魔弄醒展示恶魔卡片。",
         wakeOther: "选择一名存活玩家。如果是恶魔，互换两人的角色卡与阵营，并标记原恶魔为【严重中毒】；把新恶魔弄醒展示恶魔卡片。",
         firstNight: 50,
@@ -467,7 +467,7 @@ const ROLES_DATA = {
         otherNight: 280
       },
       flowergirl: {
-        name: "卖花女孩",
+        name: "卖花女",
         en: "Flowergirl",
         type: "townsfolk",
         ability: "每个夜晚*，你会得知今天处决处死的投票环节中，恶魔是否进行过举手投票动作。",
@@ -475,7 +475,7 @@ const ROLES_DATA = {
         otherNight: 230
       },
       towncrier: {
-        name: "镇民大声公",
+        name: "公告员",
         en: "Town Crier",
         type: "townsfolk",
         ability: "每个夜晚*，你会得知今天白天的提名人选环节中，是否有爪牙进行过提名发言动作。",
@@ -668,10 +668,10 @@ const ROLES_DATA = {
         otherNight: 168
       },
       snakecharmer: {
-        name: "舞蛇人 (蛇魅)",
+        name: "舞蛇人",
         en: "Snake Charmer",
         type: "townsfolk",
-        ability: "每个夜晚，选择一名存活玩家：如果是恶魔，你与他交换角色与阵营，并且他（现在的蛇魅）陷入严重中毒状态。",
+        ability: "每个夜晚，选择一名存活玩家：如果是恶魔，你与他交换角色与阵营，并且他（现在的舞蛇人）陷入严重中毒状态。",
         wakeFirst: "选择一名存活玩家。如果是恶魔，互换两人的角色卡与阵营，并标记原恶魔为【严重中毒】；把新恶魔弄醒展示恶魔卡片。",
         wakeOther: "选择一名存活玩家。如果是恶魔，互换两人的角色卡与阵营，并标记原恶魔为【严重中毒】；把新恶魔弄醒展示恶魔卡片。",
         firstNight: 50,
@@ -792,7 +792,7 @@ const MASTER_NIGHT_ORDER = {
     // 水手保命
     sailor: 40,
     
-    // 蛇魅吸魔
+    // 舞蛇人吸魔
     snakecharmer: 50,
     
     // 挂诅咒和洗脑
