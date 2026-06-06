@@ -3873,6 +3873,53 @@ class AppController {
       fakeRoleSel.select.onchange = updateCereText;
     }
 
+    // pithag
+    else if (wakingKey === 'pithag') {
+      const targetSel = this.createSTPlayerSelectorElement("选择转变目标玩家:");
+      const roleSel = this.createRoleSelectorElement("选择转变成的角色:", "all");
+
+      interactiveArea.appendChild(targetSel.row);
+      interactiveArea.appendChild(roleSel.row);
+
+      const updatePithagText = () => {
+        const target = this.state.players[targetSel.select.value];
+        const role = this.findRoleData(roleSel.select.value);
+        if (target && role) {
+          setDraft(`熬药巫婆指定转变玩家 [${target.name}] 的身份为：【${role.name}】（保存后魔典将自动更新）`);
+        }
+      };
+
+      targetSel.select.onchange = updatePithagText;
+      roleSel.select.onchange = updatePithagText;
+
+      const originalSave = saveBtn.onclick;
+      saveBtn.onclick = () => {
+        this.restorePlayersFromBackup();
+        const target = this.state.players[targetSel.select.value];
+        const roleKey = roleSel.select.value;
+        const roleData = this.findRoleData(roleKey);
+        
+        if (target && roleData) {
+          const oldRoleCN = target.roleData ? target.roleData.name : target.role;
+          
+          // 执行身份转变
+          target.role = roleKey;
+          target.roleData = roleData;
+          
+          this.addLog("说书人", `熬药巫婆转变：[${target.name}] 的角色由 [${oldRoleCN}] 变为 [${roleData.name}]`);
+          
+          // 如果转变出了恶魔，弹窗特别提示说书人
+          if (roleData.type === 'demon') {
+            alert(`【🚨 熬药巫婆创造了恶魔：${roleData.name}】\n\n根据规则，今晚的死亡由说书人任意决定，且今晚原本的恶魔击杀无效。请在今晚的后续结算中手动裁决。`);
+          }
+          
+          this.renderGrimoireCircle();
+          this.saveToLocalStorage();
+        }
+        originalSave();
+      };
+    }
+
     // imp & other killing demons
     else if (['imp', 'subassassin', 'po', 'shabaloth', 'zombuul', 'fanggu', 'vigormortis', 'nodashii', 'vortox'].includes(wakingKey)) {
       const isAssassin = wakingKey === 'subassassin';
