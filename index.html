@@ -72,6 +72,7 @@
               <option value="bmr">黯月升起 (Bad Moon Rising)</option>
               <option value="snv">教派与紫罗兰 (Sects & Violets)</option>
               <option value="custom_teensy">胜负难料 (迷你局)</option>
+              <option value="snmt">宿脑谜团</option>
             </select>
             <button class="btn btn-secondary" onclick="app.openScriptReferenceModal();" style="margin-top: 10px; width: 100%;">📜 查看当前剧本角色说明</button>
           </div>
@@ -490,6 +491,14 @@
           <span style="font-size: 0.85rem; color: #3498db;">🛡️ 安全/被守护 (Safe)</span>
           <label class="toggle-switch">
             <input type="checkbox" id="edit-state-safe">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="switch-container" style="border-top: 1px solid rgba(255,255,255,0.03); padding-top: 6px; margin-top: 6px;">
+          <span style="font-size: 0.85rem; color: #ff9ff3;">🐛 痢蛭宿主 (Leech Host)</span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="edit-state-leechhost">
             <span class="slider"></span>
           </label>
         </div>

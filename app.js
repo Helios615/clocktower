@@ -1465,6 +1465,16 @@ class AppController {
         bubbles.appendChild(b);
       }
 
+      if (p.leechHost) {
+        const b = document.createElement('div');
+        b.className = 'state-bubble';
+        b.style.background = '#9b59b6';
+        b.style.color = '#fff';
+        b.innerText = "蛭";
+        b.title = "痢蛭宿主 - 处于中毒状态，且只有当宿主死亡时，痢蛭才会一同死亡";
+        bubbles.appendChild(b);
+      }
+
       if (bubbles.children.length > 0) {
         seat.appendChild(bubbles);
       }
@@ -1878,6 +1888,7 @@ class AppController {
     document.getElementById('edit-state-poisoned').checked = p.poisoned;
     document.getElementById('edit-state-drunk').checked = p.drunk;
     document.getElementById('edit-state-safe').checked = p.safe;
+    document.getElementById('edit-state-leechhost').checked = !!p.leechHost;
 
     const deathTypeSelect = document.getElementById('edit-death-type-field');
     if (deathTypeSelect) {
@@ -1970,6 +1981,7 @@ class AppController {
     const poisoned = document.getElementById('edit-state-poisoned').checked;
     const drunk = document.getElementById('edit-state-drunk').checked;
     const safe = document.getElementById('edit-state-safe').checked;
+    const leechHost = document.getElementById('edit-state-leechhost').checked;
     const deathType = document.getElementById('edit-death-type-field').value;
 
     let changes = [];
@@ -2122,6 +2134,24 @@ class AppController {
     if (p.safe !== safe) {
       changes.push(safe ? "得到了圣盾庇护 🛡️" : "守护光环退去");
       p.safe = safe;
+    }
+    if (p.leechHost !== leechHost) {
+      if (leechHost) {
+        // Clear previous host if any
+        this.state.players.forEach(otherP => {
+          if (otherP.index !== idx && otherP.leechHost) {
+            otherP.leechHost = false;
+            otherP.poisoned = false;
+            this.addLog(otherP.name, "解除了痢蛭寄生状态");
+          }
+        });
+        changes.push("被痢蛭寄生成为宿主 🐛");
+        p.leechHost = true;
+        p.poisoned = true;
+      } else {
+        changes.push("解除了痢蛭寄生状态");
+        p.leechHost = false;
+      }
     }
 
     if (changes.length > 0) {
@@ -2285,7 +2315,9 @@ class AppController {
     if (this.state.phase === 'night') {
       this.state.players.forEach(p => {
         p.safe = false; 
-        p.poisoned = false;
+        if (!p.leechHost) {
+          p.poisoned = false;
+        }
         if (p.role !== 'drunk') {
           p.drunk = false;
         }
@@ -2450,6 +2482,11 @@ class AppController {
           p.marionetteRole = backup.marionetteRole;
         } else {
           delete p.marionetteRole;
+        }
+        if (backup.leechHost !== undefined) {
+          p.leechHost = backup.leechHost;
+        } else {
+          delete p.leechHost;
         }
       }
     });
@@ -3692,7 +3729,7 @@ class AppController {
             // If poisoner dies, remove poison
             if (target.role === 'poisoner') {
               this.state.players.forEach(otherP => {
-                if (otherP.poisoned) {
+                if (otherP.poisoned && !otherP.leechHost) {
                   otherP.poisoned = false;
                   this.addLog("系统", `因下毒者 [${target.name}] 死亡，自动清除了 [${otherP.name}] 的中毒状态 🧪`);
                 }
@@ -3778,7 +3815,11 @@ class AppController {
         const target = this.state.players[val];
         if (target) {
           // Apply poison
-          this.state.players.forEach(p => p.poisoned = false);
+          this.state.players.forEach(p => {
+            if (!p.leechHost) {
+              p.poisoned = false;
+            }
+          });
           target.poisoned = true;
           this.renderGrimoireCircle();
           this.saveToLocalStorage();
@@ -3788,6 +3829,67 @@ class AppController {
           setDraft("");
           this.renderGrimoireCircle();
           this.saveToLocalStorage();
+        }
+      };
+    // leech first night host selection
+    else if (wakingKey === 'leech' && this.state.dayNumber === 1) {
+      const sel = this.createSelectorElement("选择宿主:", false);
+      interactiveArea.appendChild(sel.row);
+
+      sel.select.onchange = (e) => {
+        this.restorePlayersFromBackup();
+        const val = e.target.value;
+        const target = this.state.players[val];
+        if (target) {
+          this.state.players.forEach(p => {
+            if (p.leechHost) {
+              p.leechHost = false;
+              p.poisoned = false;
+            }
+          });
+          target.leechHost = true;
+          target.poisoned = true;
+          this.renderGrimoireCircle();
+          this.saveToLocalStorage();
+          setDraft(`选择玩家 [${target.name}] 作为痢蛭宿主并使其中毒 🧪`);
+        } else {
+          setDraft("");
+          this.renderGrimoireCircle();
+          this.saveToLocalStorage();
+        }
+      };
+    }
+
+    // pixie
+    else if (wakingKey === 'pixie') {
+      const roleSel = this.createRoleSelectorElement("展示的在场村民角色:", "townsfolk");
+      interactiveArea.appendChild(roleSel.row);
+
+      roleSel.select.onchange = (e) => {
+        this.restorePlayersFromBackup();
+        const roleKey = e.target.value;
+        const roleChar = this.findRoleData(roleKey);
+        if (roleChar) {
+          setDraft(`向小精灵展示村民角色【${roleChar.name}】(${roleChar.en})，令其对其产生疯狂 🧚‍♀️`);
+        } else {
+          setDraft("");
+        }
+      };
+    }
+
+    // bountyhunter
+    else if (wakingKey === 'bountyhunter') {
+      const sel = this.createSelectorElement(this.state.dayNumber === 1 ? "告知邪恶玩家:" : "告知新的邪恶玩家:", false);
+      interactiveArea.appendChild(sel.row);
+
+      sel.select.onchange = (e) => {
+        this.restorePlayersFromBackup();
+        const val = e.target.value;
+        const target = this.state.players[val];
+        if (target) {
+          setDraft(`告知猎手玩家 [${target.name}] 是邪恶阵营的 😈`);
+        } else {
+          setDraft("");
         }
       };
     }
@@ -3921,7 +4023,7 @@ class AppController {
     }
 
     // imp & other killing demons
-    else if (['imp', 'subassassin', 'po', 'shabaloth', 'zombuul', 'fanggu', 'vigormortis', 'nodashii', 'vortox'].includes(wakingKey)) {
+    else if (['imp', 'subassassin', 'po', 'shabaloth', 'zombuul', 'fanggu', 'vigormortis', 'nodashii', 'vortox', 'leech'].includes(wakingKey)) {
       const isAssassin = wakingKey === 'subassassin';
       const labelText = isAssassin ? "刺客必死刺杀目标:" : "袭击/杀害目标:";
       const sel = this.createSelectorElement(labelText, true); // living only
@@ -3982,7 +4084,7 @@ class AppController {
             // 规则：下毒者一旦死亡，被其毒害的目标必须立刻解毒！
             if (target.role === 'poisoner') {
               this.state.players.forEach(otherP => {
-                if (otherP.poisoned) {
+                if (otherP.poisoned && !otherP.leechHost) {
                   otherP.poisoned = false;
                   this.addLog("系统", `因下毒者 [${target.name}] 死亡，自动清除了 [${otherP.name}] 的中毒状态 🧪`);
                 }
@@ -4436,6 +4538,22 @@ class AppController {
     }
     
     titleEl.innerText = `${scriptName} - 角色说明表 📜`;
+    
+    if (targetScript === 'snmt') {
+      const posterContainer = document.createElement('div');
+      posterContainer.style.textAlign = 'center';
+      posterContainer.style.marginBottom = '20px';
+      
+      const posterImg = document.createElement('img');
+      posterImg.src = 'script/名动京城.png';
+      posterImg.style.maxHeight = '300px';
+      posterImg.style.borderRadius = '8px';
+      posterImg.style.border = '1px solid rgba(255, 255, 255, 0.1)';
+      posterImg.style.boxShadow = '0 4px 15px rgba(0, 0, 0, 0.5)';
+      
+      posterContainer.appendChild(posterImg);
+      bodyEl.appendChild(posterContainer);
+    }
     
     const typesOrder = ['townsfolk', 'outsider', 'minion', 'demon'];
     typesOrder.forEach(type => {

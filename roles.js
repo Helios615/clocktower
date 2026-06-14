@@ -768,6 +768,101 @@ const ROLES_DATA = {
         otherNight: 135
       }
     }
+  },
+
+  // === 剧本 5: 宿脑谜团 (Beijing Custom) ===
+  snmt: {
+    name: "宿脑谜团",
+    characters: {
+      undertaker: {
+        name: "葬送者",
+        en: "Undertaker",
+        type: "townsfolk",
+        ability: "每个夜晚*，你会得知今天因处决而死亡的玩家的角色。",
+        wakeOther: "如果今天有人被处决并死亡，向葬送者展示该玩家的角色标记，否则直接让他睡去。",
+        otherNight: 180
+      },
+      slayer: {
+        name: "杀手",
+        en: "Slayer",
+        type: "townsfolk",
+        ability: "每个游戏一次，在白天，你可以公开选择一名玩家：如果该玩家是恶魔，他会死亡。",
+        abilityType: "passive"
+      },
+      exorcist: {
+        name: "驱魔人",
+        en: "Exorcist",
+        type: "townsfolk",
+        ability: "每个夜晚*，选择一名玩家（不能与上一晚相同）：如果他为恶魔，他会得知你的身份且他今晚无法苏醒，也无法产生夜间击杀。",
+        wakeOther: "选择一名玩家。如果是恶魔，把驱魔人翻回并唤醒恶魔，指向驱魔人展示【该玩家选择你了】；恶魔今晚不进行击杀步骤。",
+        otherNight: 120
+      },
+      juggler: {
+        name: "杂耍艺人",
+        en: "Juggler",
+        type: "townsfolk",
+        ability: "在你首个白天，你可以公开猜测至多五名玩家的具体角色身份。今天夜里，你会得知你猜对了几个人。",
+        wakeOther: "如果杂耍艺人今天白天公开猜测了身份：唤醒他，用手指展示他今天猜对角色的数量（0, 1...5）。",
+        otherNight: 300
+      },
+      pixie: {
+        name: "小精灵",
+        en: "Pixie",
+        type: "townsfolk",
+        ability: "在首个夜晚，你会得知一个在场的镇民角色。如果你“疯狂”地证明你是该角色，当该角色死亡时，你将获得该角色的能力。",
+        wakeFirst: "向其展示一个在场的镇民角色标记。",
+        firstNight: 95
+      },
+      fisherman: {
+        name: "渔夫",
+        en: "Fisherman",
+        type: "townsfolk",
+        ability: "每局游戏限一次，在白天，你可以请求说书人给你一些有助于你阵营获胜的建议。",
+        abilityType: "passive"
+      },
+      drunk: {
+        name: "酒鬼",
+        en: "Drunk",
+        type: "outsider",
+        ability: "你不知道自己是酒鬼。你以为自己是一个村民，但你的能力并不起作用。",
+        abilityType: "passive"
+      },
+      lunatic: {
+        name: "疯子",
+        en: "Lunatic",
+        type: "outsider",
+        ability: "你不知道自己是疯子。你以为自己是恶魔，但你的选择不产生实际效果。在首个夜晚，你会得知谁是你的爪牙，但他们得知你是疯子。每个夜晚，你会被唤醒并选择击杀目标，且你会得知恶魔今晚的选择。",
+        wakeFirst: "向其展示【恶魔】角色标记。指向几名玩家代表【爪牙】（真正的爪牙得知他是疯子）。",
+        wakeOther: "唤醒疯子并让他选择击杀目标。在真实恶魔苏醒时，把疯子的选择告诉真实恶魔。",
+        firstNight: 165,
+        otherNight: 125
+      },
+      marionette: {
+        name: "提线木偶",
+        en: "Marionette",
+        type: "minion",
+        ability: "你不知道自己是提线木偶。你以为自己是善良角色，但你其实是爪牙。你必须与恶魔相邻存活。你免疫恶魔的夜间袭击。",
+        abilityType: "passive"
+      },
+      devilsadvocate: {
+        name: "魔鬼代言人",
+        en: "Devil's Advocate",
+        type: "minion",
+        ability: "每个夜晚*，选择一名玩家（不能与上一晚相同）：该玩家在明天即使被处决也免于死亡。",
+        wakeOther: "选择一名玩家。标记其为【免除处决死亡】。",
+        otherNight: 60
+      },
+      leech: {
+        name: "痢蛭",
+        en: "Leech",
+        type: "demon",
+        ability: "每个夜晚*，选择一名玩家：他死亡。首个夜晚，选择一名存活玩家作为宿主：该宿主中毒，且只有当该宿主死亡时，你才会一同死亡。",
+        wakeFirst: "选择一名存活玩家作为宿主。标记该玩家为【痢蛭宿主】且【中毒】状态。",
+        wakeOther: "选择一名玩家杀害。",
+        firstNight: 180,
+        otherNight: 132
+      }
+    }
   }
 };
 
@@ -804,8 +899,10 @@ const MASTER_NIGHT_ORDER = {
     
     // 信息收集
     washerwoman: 90,
+    pixie: 95,
     librarian: 100,
     puzzlemaster: 105,
+    bountyhunter: 108,
     investigator: 110,
     chef: 120,
     clockmaker: 130,
@@ -815,6 +912,7 @@ const MASTER_NIGHT_ORDER = {
     lunatic: 165, // Add Lunatic (疯子) here
     amnesiac: 162,
     godfather: 170,
+    leech: 180,
     pukka: 180,
     dreamer: 190,
     chambermaid: 200,
@@ -856,6 +954,7 @@ const MASTER_NIGHT_ORDER = {
     imp: 130,
     zombuul: 131,
     pukka: 132,
+    leech: 132,
     shabaloth: 133,
     po: 134,
     fanggu: 135,
@@ -875,6 +974,7 @@ const MASTER_NIGHT_ORDER = {
     
     // 其它获取信息村民
     undertaker: 180,
+    bountyhunter: 185,
     empath: 200,
     fortuneteller: 210,
     oracle: 220,
