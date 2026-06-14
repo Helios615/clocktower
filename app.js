@@ -4540,22 +4540,6 @@ class AppController {
     
     titleEl.innerText = `${scriptName} - 角色说明表 📜`;
     
-    if (targetScript === 'snmt') {
-      const posterContainer = document.createElement('div');
-      posterContainer.style.textAlign = 'center';
-      posterContainer.style.marginBottom = '20px';
-      
-      const posterImg = document.createElement('img');
-      posterImg.src = 'script/名动京城.png';
-      posterImg.style.maxHeight = '300px';
-      posterImg.style.borderRadius = '8px';
-      posterImg.style.border = '1px solid rgba(255, 255, 255, 0.1)';
-      posterImg.style.boxShadow = '0 4px 15px rgba(0, 0, 0, 0.5)';
-      
-      posterContainer.appendChild(posterImg);
-      bodyEl.appendChild(posterContainer);
-    }
-    
     const typesOrder = ['townsfolk', 'outsider', 'minion', 'demon'];
     typesOrder.forEach(type => {
       const list = characters[type];
