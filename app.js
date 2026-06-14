@@ -3831,6 +3831,7 @@ class AppController {
           this.saveToLocalStorage();
         }
       };
+    }
     // leech first night host selection
     else if (wakingKey === 'leech' && this.state.dayNumber === 1) {
       const sel = this.createSelectorElement("选择宿主:", false);
