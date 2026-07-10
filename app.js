@@ -4842,7 +4842,7 @@ class AppController {
     
     const select = document.createElement('select');
     select.className = 'manual-select';
-    select.style.maxWidth = '180px';
+    select.style.maxWidth = '220px';
     
     const placeholder = document.createElement('option');
     placeholder.value = "";
@@ -4853,15 +4853,7 @@ class AppController {
       if (onlyAlive && p.dead) return;
       const opt = document.createElement('option');
       opt.value = p.index;
-      
-      let roleDesc = "";
-      if (p.role === 'drunk') {
-        roleDesc = `[酒鬼-${p.drunkRole ? (this.findRoleData(p.drunkRole)?.name || p.drunkRole) : '未设'}]`;
-      } else if (p.roleData) {
-        roleDesc = `[${p.roleData.name}]`;
-      }
-      
-      opt.innerText = `${p.index + 1}号: ${p.name} ${roleDesc} ${p.dead ? '(已死)' : '(存活)'}`;
+      opt.innerText = this.buildPlayerOptionLabel(p);
       select.appendChild(opt);
     });
     
@@ -4884,7 +4876,7 @@ class AppController {
     
     const select = document.createElement('select');
     select.className = 'manual-select';
-    select.style.maxWidth = '180px';
+    select.style.maxWidth = '220px';
     
     const placeholder = document.createElement('option');
     placeholder.value = "";
@@ -4895,13 +4887,46 @@ class AppController {
       if (onlyAlive && p.dead) return;
       const opt = document.createElement('option');
       opt.value = p.index;
-      opt.innerText = `${p.index + 1}号: ${p.name} ${p.dead ? '(已死)' : '(存活)'}`;
+      opt.innerText = this.buildPlayerOptionLabel(p);
       select.appendChild(opt);
     });
     
     row.appendChild(lbl);
     row.appendChild(select);
     return { row, select };
+  }
+
+  // 统一构建玩家选项标签 (角色名 + 阵营 + 状态)
+  buildPlayerOptionLabel(p) {
+    // 确定显示角色名
+    let roleName = '?';
+    let alignTag = '?';
+    const evilTypes = ['minion', 'demon'];
+    const goodTypes = ['townsfolk', 'outsider'];
+
+    if (p.role === 'drunk') {
+      // 酒鬼：显示伪装的村民身份
+      const fakeRoleName = p.drunkRole ? (this.findRoleData(p.drunkRole)?.name || p.drunkRole) : '未设';
+      roleName = `酒鬼(伪${fakeRoleName})`;
+      alignTag = '善';
+    } else if (p.role === 'marionette') {
+      // 提线木偶：展示爪牙真实身份
+      const fakeRoleName = p.marionetteRole ? (this.findRoleData(p.marionetteRole)?.name || p.marionetteRole) : '?';
+      roleName = `提线木偶(伪${fakeRoleName})`;
+      alignTag = '恶';
+    } else if (p.roleData) {
+      roleName = p.roleData.name;
+      alignTag = goodTypes.includes(p.roleData.type) ? '善' : (evilTypes.includes(p.roleData.type) ? '恶' : '?');
+    }
+
+    // 状态图标
+    const statusIcons = [];
+    if (p.poisoned) statusIcons.push('🧪');
+    if (p.drunk) statusIcons.push('🍺');
+    const statusStr = statusIcons.length > 0 ? ' ' + statusIcons.join('') : '';
+    const deadStr = p.dead ? ' ✝' : '';
+
+    return `${p.index + 1}号 ${p.name} [${alignTag}·${roleName}]${statusStr}${deadStr}`;
   }
 
   createRoleSelectorElement(labelText, filterType = "all") {
