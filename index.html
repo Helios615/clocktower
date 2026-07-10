@@ -73,6 +73,7 @@
               <option value="snv">教派与紫罗兰 (Sects & Violets)</option>
               <option value="custom_teensy">胜负难料 (迷你局)</option>
               <option value="snmt">宿脑谜团</option>
+              <option value="mdjc">名动京城 (Beijing Custom)</option>
             </select>
             <button class="btn btn-secondary" onclick="app.openScriptReferenceModal();" style="margin-top: 10px; width: 100%;">📜 查看当前剧本角色说明</button>
           </div>
@@ -264,11 +265,22 @@
 
           <!-- Mode 3: Manual Designation (手动指定) -->
           <div id="dist-mode-container-manual" style="display: none;">
-            <p style="font-size: 0.75rem; color: hsl(var(--text-muted)); margin-bottom: 15px;">
-              如果你在实体现下已经通过其他实体牌（如卡牌/纸条）分发完毕，你可以在这里为每一位玩家手动录入对应的角色：
+            <p style="font-size: 0.75rem; color: hsl(var(--text-muted)); margin-bottom: 10px;">
+              你可以在这里为每一位玩家手动指定对应的角色，也可以先手动指定部分角色，再使用“补齐”功能随机填充其余玩家。
             </p>
+            
+            <div class="btn-action-row" style="margin-bottom: 15px; gap: 8px; justify-content: flex-start; flex-wrap: wrap;">
+              <button class="btn btn-secondary" onclick="app.clearManualDistribution();" style="font-size: 0.75rem; padding: 6px 12px; width: auto; margin: 0;">重置为空</button>
+              <button class="btn btn-secondary" onclick="app.reshuffleManualDistribution();" style="font-size: 0.75rem; padding: 6px 12px; width: auto; margin: 0;">🎲 重新随机洗牌</button>
+              <button class="btn btn-gold" onclick="app.autocompleteManualDistribution();" style="font-size: 0.75rem; padding: 6px 12px; width: auto; margin: 0;">⚡ 补齐未指定席位</button>
+            </div>
+
             <div id="manual-distribution-list">
               <!-- Dynamically populated rows for select mapping -->
+            </div>
+
+            <div id="manual-dist-validation-alert" style="margin-top: 15px; padding: 12px; border-radius: 8px; font-size: 0.8rem; line-height: 1.45; display: none; background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(255,255,255,0.05);">
+              <!-- Dynamically rendered validation result -->
             </div>
           </div>
         </div>

@@ -896,8 +896,14 @@ class AppController {
     this.state.distManualRoles = {};
     this.state.distQRPlayersDone = new Array(this.state.playerCount).fill(false);
 
-    // 随机把角色池中的部分角色洗入真实发牌池 (如果说书人多勾选了，则随机抽)
-    this.distributeFinalRolesPool();
+    // 只有当玩家列表为空，或者人数发生变化，或者角色池中的角色都不在当前玩家列表中时，我们才重新随机生成
+    const currentRolesInPlay = this.state.players ? this.state.players.map(p => p.role).filter(Boolean) : [];
+    const poolHasAllInPlay = currentRolesInPlay.every(r => this.state.pool.includes(r));
+    const countMatches = this.state.players && this.state.players.length === this.state.playerCount;
+    
+    if (!countMatches || currentRolesInPlay.length === 0 || !poolHasAllInPlay) {
+      this.distributeFinalRolesPool();
+    }
 
     this.renderDistributionView();
     this.switchView('dist-view');
@@ -956,8 +962,6 @@ class AppController {
     }
 
     // 解谜大师首夜指定被醉酒角色校验：
-    // 如果解谜大师在场，我们检查指定的醉酒角色 puzzlemasterDrunkRole 是否在 finalShuffled 中。
-    // 如果没有指定，或者指定的角色恰好没有被分配到本局中，则从本局已分配的好人角色（Townsfolk/Outsider）中随机选一个作为实际生效的醉酒角色！
     if (finalShuffled.includes('puzzlemaster')) {
       let targetRole = this.state.puzzlemasterDrunkRole;
       if (!targetRole || !finalShuffled.includes(targetRole)) {
@@ -1023,45 +1027,382 @@ class AppController {
     const manualList = document.getElementById('manual-distribution-list');
     manualList.innerHTML = '';
     
+    // 提前计算当前每个角色已被分配给谁，用于在下拉菜单中进行标注提示
+    const allocatedRoles = {}; // roleKey -> playerIndex
+    this.state.players.forEach(p => {
+      if (p.role) {
+        allocatedRoles[p.role] = p.index;
+      }
+    });
+
     for (let i = 0; i < this.state.playerCount; i++) {
       const itemRow = document.createElement('div');
       itemRow.className = 'manual-list-item';
+      itemRow.style.display = 'flex';
+      itemRow.style.alignItems = 'center';
+      itemRow.style.justifyContent = 'space-between';
+      itemRow.style.padding = '8px 12px';
+      itemRow.style.background = 'rgba(255,255,255,0.02)';
+      itemRow.style.border = '1px solid rgba(255,255,255,0.05)';
+      itemRow.style.borderRadius = '8px';
+      itemRow.style.marginBottom = '8px';
 
       const label = document.createElement('span');
       label.innerText = `${i + 1}号 [${this.state.playerNames[i]}]:`;
+      label.style.fontSize = '0.85rem';
+      label.style.fontWeight = 'bold';
 
       const select = document.createElement('select');
       select.className = 'manual-select';
+      select.style.padding = '6px 10px';
+      select.style.borderRadius = '6px';
+      select.style.background = 'rgba(0,0,0,0.5)';
+      select.style.color = '#fff';
+      select.style.border = '1px solid rgba(255,255,255,0.1)';
+      select.style.fontSize = '0.8rem';
+      select.style.minWidth = '180px';
       
-      // 提供当前分配出来的所有可用角色让说书人指定映射
-      const currentSelectedRolesInPlay = this.state.players.map(p => p.role);
+      // 空白占位符
+      const emptyOpt = document.createElement('option');
+      emptyOpt.value = '';
+      emptyOpt.innerText = '-- 请选择角色 --';
+      select.appendChild(emptyOpt);
       
-      currentSelectedRolesInPlay.forEach(roleKey => {
+      // 遍历说书人在角色池勾选的全部备选角色作为选项
+      this.state.pool.forEach(roleKey => {
         const char = this.findRoleData(roleKey);
+        if (!char) return;
+
         const opt = document.createElement('option');
         opt.value = roleKey;
-        opt.innerText = char ? char.name : roleKey;
+        
+        // 标注已分配的去向提示
+        const occupantIdx = allocatedRoles[roleKey];
+        if (occupantIdx !== undefined && occupantIdx !== i) {
+          opt.innerText = `[${this.getRoleTypeCN(char.type)}] ${char.name} (已分配给: ${occupantIdx + 1}号)`;
+          opt.style.color = 'rgba(255,255,255,0.3)';
+        } else {
+          opt.innerText = `[${this.getRoleTypeCN(char.type)}] ${char.name}`;
+          opt.style.color = this.getRoleTypeColor(char.type);
+        }
+        
         select.appendChild(opt);
       });
 
       // 初始化手动选择
-      select.value = this.state.players[i].role;
+      select.value = this.state.players[i].role || '';
       select.onchange = (e) => {
         const val = e.target.value;
         this.state.players[i].role = val;
-        this.state.players[i].roleData = this.findRoleData(val);
+        this.state.players[i].roleData = val ? this.findRoleData(val) : null;
+        
+        // 特殊角色状态联动
         if (val === 'drunk') {
           this.state.players[i].drunk = true;
           this.state.players[i].drunkRole = this.state.drunkRole || '';
         } else {
-          delete this.state.players[i].drunkRole;
+          // 清除醉酒标志（如果是解谜大师，后续由校验和 post-process 会动态处理）
+          this.state.players[i].drunk = false;
         }
+
+        if (val === 'marionette') {
+          this.state.players[i].marionetteRole = this.state.marionetteRole || '';
+        } else {
+          delete this.state.players[i].marionetteRole;
+        }
+
+        // 重新渲染，更新各个下拉框的已分配标注
+        this.renderDistributionView();
         this.saveToLocalStorage();
       };
 
       itemRow.appendChild(label);
       itemRow.appendChild(select);
       manualList.appendChild(itemRow);
+    }
+
+    // 触发手动分配实时校验看板更新
+    this.validateManualDistribution();
+  }
+
+  validateManualDistribution() {
+    const rules = this.getCurrentDistributionRules();
+    const alertEl = document.getElementById('manual-dist-validation-alert');
+    const nextBtn = document.getElementById('btn-dist-next');
+    if (!alertEl) return;
+
+    if (this.state.distMode !== 'manual') {
+      alertEl.style.display = 'none';
+      return;
+    }
+
+    let unassignedCount = 0;
+    const counts = { townsfolk: 0, outsider: 0, minion: 0, demon: 0 };
+    const assignedRoles = {}; // roleKey -> array of playerIndices
+    const errors = [];
+
+    this.state.players.forEach(p => {
+      if (!p.role) {
+        unassignedCount++;
+      } else {
+        const char = this.findRoleData(p.role);
+        if (char) {
+          counts[char.type]++;
+        }
+        if (!assignedRoles[p.role]) {
+          assignedRoles[p.role] = [];
+        }
+        assignedRoles[p.role].push(p.index);
+      }
+    });
+
+    // 1. 检查是否有玩家未分配角色
+    if (unassignedCount > 0) {
+      errors.push(`⚠️ 还有 <strong>${unassignedCount}</strong> 位玩家未分配角色。`);
+    }
+
+    // 2. 检查重复分配
+    Object.keys(assignedRoles).forEach(key => {
+      const idxs = assignedRoles[key];
+      if (idxs.length > 1) {
+        const name = this.findRoleData(key)?.name || key;
+        const playerNames = idxs.map(i => `${i + 1}号 [${this.state.playerNames[i]}]`).join('、');
+        errors.push(`❌ 角色【<strong>${name}</strong>】被重复分配给了多个玩家：${playerNames}。`);
+      }
+    });
+
+    // 3. 检查阵营构成是否完全契合当前的人数规则
+    if (counts.townsfolk !== rules.townsfolk) {
+      errors.push(`❌ 村民数量不符：已分配 <strong>${counts.townsfolk}</strong> / 规则要求 ${rules.townsfolk}。`);
+    }
+    if (counts.outsider !== rules.outsider) {
+      errors.push(`❌ 外来者数量不符：已分配 <strong>${counts.outsider}</strong> / 规则要求 ${rules.outsider}。`);
+    }
+    if (counts.minion !== rules.minion) {
+      errors.push(`❌ 爪牙数量不符：已分配 <strong>${counts.minion}</strong> / 规则要求 ${rules.minion}。`);
+    }
+    if (counts.demon !== rules.demon) {
+      errors.push(`❌ 恶魔数量不符：已分配 <strong>${counts.demon}</strong> / 规则要求 ${rules.demon}。`);
+    }
+
+    // 4. 检查提线木偶物理相邻规则 (如果在场且已分配)
+    if (assignedRoles['marionette'] && assignedRoles['marionette'].length > 0) {
+      const marionetteIdx = assignedRoles['marionette'][0];
+      const N = this.state.playerCount;
+      const leftIdx = (marionetteIdx - 1 + N) % N;
+      const rightIdx = (marionetteIdx + 1) % N;
+      
+      const leftPlayer = this.state.players[leftIdx];
+      const rightPlayer = this.state.players[rightIdx];
+      
+      const isLeftDemon = leftPlayer && leftPlayer.role && this.findRoleData(leftPlayer.role)?.type === 'demon';
+      const isRightDemon = rightPlayer && rightPlayer.role && this.findRoleData(rightPlayer.role)?.type === 'demon';
+      
+      if (!isLeftDemon && !isRightDemon) {
+        errors.push("❌ 警告：[提线木偶] 必须与某个 [恶魔] 物理相邻！当前其左右两侧座位均无恶魔。");
+      }
+    }
+
+    alertEl.style.display = 'block';
+
+    if (errors.length > 0) {
+      alertEl.style.background = 'rgba(231, 76, 60, 0.15)';
+      alertEl.style.borderColor = 'rgba(231, 76, 60, 0.4)';
+      alertEl.style.color = '#ff6b6b';
+      alertEl.innerHTML = `<div style="font-weight: bold; margin-bottom: 5px; color: #ff6b6b;">⚠️ 分配校验未通过：</div>` + errors.map(e => `<div style="margin-bottom: 3px;">${e}</div>`).join('');
+      nextBtn.setAttribute('disabled', 'true');
+    } else {
+      alertEl.style.background = 'rgba(46, 204, 113, 0.15)';
+      alertEl.style.borderColor = 'rgba(46, 204, 113, 0.4)';
+      alertEl.style.color = '#2ecc71';
+      alertEl.innerHTML = `🟢 <strong>分配校验已通过！</strong> 完美符合当前人数的阵营配额 (${rules.townsfolk}村民, ${rules.outsider}外来者, ${rules.minion}爪牙, ${rules.demon}恶魔)，可点击下方按钮生成魔典。`;
+      nextBtn.removeAttribute('disabled');
+    }
+  }
+
+  clearManualDistribution() {
+    this.state.players.forEach(p => {
+      p.role = "";
+      p.roleData = null;
+      p.drunk = false;
+      delete p.drunkRole;
+      delete p.marionetteRole;
+      delete p.puzzlemasterDrunk;
+    });
+    this.renderDistributionView();
+    this.saveToLocalStorage();
+  }
+
+  reshuffleManualDistribution() {
+    this.distributeFinalRolesPool();
+    this.renderDistributionView();
+    this.saveToLocalStorage();
+  }
+
+  autocompleteManualDistribution() {
+    const rules = this.getCurrentDistributionRules();
+    
+    // 统计目前已手动分配的各类型角色数量
+    const assignedCounts = { townsfolk: 0, outsider: 0, minion: 0, demon: 0 };
+    const assignedRoles = new Set();
+    
+    this.state.players.forEach(p => {
+      if (p.role) {
+        assignedRoles.add(p.role);
+        const char = this.findRoleData(p.role);
+        if (char) {
+          assignedCounts[char.type]++;
+        }
+      }
+    });
+
+    // 计算各阵营还需要分配多少个
+    const needed = {
+      townsfolk: Math.max(0, rules.townsfolk - assignedCounts.townsfolk),
+      outsider: Math.max(0, rules.outsider - assignedCounts.outsider),
+      minion: Math.max(0, rules.minion - assignedCounts.minion),
+      demon: Math.max(0, rules.demon - assignedCounts.demon)
+    };
+
+    // 从 pool 中找出所有尚未分配的角色，并按类别分组
+    const poolTownsfolk = [];
+    const poolOutsider = [];
+    const poolMinion = [];
+    const poolDemon = [];
+
+    this.state.pool.forEach(key => {
+      if (assignedRoles.has(key)) return; // 过滤已分配角色
+      const char = this.findRoleData(key);
+      if (char) {
+        if (char.type === 'townsfolk') poolTownsfolk.push(key);
+        else if (char.type === 'outsider') poolOutsider.push(key);
+        else if (char.type === 'minion') poolMinion.push(key);
+        else if (char.type === 'demon') poolDemon.push(key);
+      }
+    });
+
+    // 检查角色池中剩余的角色数量是否足够补齐
+    if (poolTownsfolk.length < needed.townsfolk) {
+      alert(`【补齐失败：村民不足】\n\n本局还需要补齐 ${needed.townsfolk} 个村民，但您选的角色池中除已分配的以外，仅剩 ${poolTownsfolk.length} 个村民备选角色。\n\n请返回上一步，多勾选一些村民角色作为备选！`);
+      return;
+    }
+    if (poolOutsider.length < needed.outsider) {
+      alert(`【补齐失败：外来者不足】\n\n本局还需要补齐 ${needed.outsider} 个外来者，但您选的角色池中仅剩 ${poolOutsider.length} 个外来者备选角色。\n\n请返回上一步多勾选外来者！`);
+      return;
+    }
+    if (poolMinion.length < needed.minion) {
+      alert(`【补齐失败：爪牙不足】\n\n本局还需要补齐 ${needed.minion} 个爪牙，但您选的角色池中仅剩 ${poolMinion.length} 个爪牙备选角色。`);
+      return;
+    }
+    if (poolDemon.length < needed.demon) {
+      alert(`【补齐失败：恶魔不足】\n\n本局还需要补齐 ${needed.demon} 个恶魔，但您选的角色池中仅剩 ${poolDemon.length} 个恶魔备选角色。`);
+      return;
+    }
+
+    // 随机抽取角色
+    const drawTownsfolk = this.getRandomSubarray(poolTownsfolk, needed.townsfolk);
+    const drawOutsider = this.getRandomSubarray(poolOutsider, needed.outsider);
+    const drawMinion = this.getRandomSubarray(poolMinion, needed.minion);
+    const drawDemon = this.getRandomSubarray(poolDemon, needed.demon);
+
+    // 合并补齐列表
+    const fillQueue = [
+      ...drawTownsfolk,
+      ...drawOutsider,
+      ...drawMinion,
+      ...drawDemon
+    ];
+
+    // 随机打乱补齐队列
+    const shuffledQueue = fillQueue.sort(() => 0.5 - Math.random());
+
+    // 遍历未分配的座位，用 shuffledQueue 依次填补
+    this.state.players.forEach(p => {
+      if (!p.role && shuffledQueue.length > 0) {
+        const val = shuffledQueue.pop();
+        p.role = val;
+        p.roleData = this.findRoleData(val);
+        
+        // 自动初始化特殊角色标记
+        if (val === 'drunk') {
+          p.drunk = true;
+          p.drunkRole = this.state.drunkRole || '';
+        } else {
+          p.drunk = false;
+        }
+
+        if (val === 'marionette') {
+          p.marionetteRole = this.state.marionetteRole || '';
+        }
+      }
+    });
+
+    this.renderDistributionView();
+    this.saveToLocalStorage();
+  }
+
+  postProcessManualDistribution() {
+    const rolesInPlay = this.state.players.map(p => p.role).filter(Boolean);
+    
+    this.state.players.forEach(p => {
+      if (!p.role) return;
+      
+      const isDrunkRole = (p.role === 'drunk');
+      
+      // 1. 酒鬼伪装处理
+      if (isDrunkRole) {
+        p.drunk = true;
+        if (!p.drunkRole) {
+          const townsfolkList = this.getAvailableRolesList('townsfolk').filter(r => !rolesInPlay.includes(r.key));
+          p.drunkRole = townsfolkList.length > 0 ? townsfolkList[0].key : 'washerwoman';
+        }
+      } else {
+        if (!p.puzzlemasterDrunk) {
+          p.drunk = false;
+        }
+      }
+
+      // 2. 提线木偶伪装处理
+      if (p.role === 'marionette') {
+        if (!p.marionetteRole) {
+          const goodRoles = [
+            ...this.getAvailableRolesList('townsfolk'),
+            ...this.getAvailableRolesList('outsider')
+          ].filter(r => !rolesInPlay.includes(r.key));
+          p.marionetteRole = goodRoles.length > 0 ? goodRoles[0].key : 'washerwoman';
+        }
+      } else {
+        delete p.marionetteRole;
+      }
+    });
+
+    // 3. 解谜大师醉酒处理
+    const hasPuzzlemaster = rolesInPlay.includes('puzzlemaster');
+    this.state.players.forEach(p => {
+      if (p.puzzlemasterDrunk) {
+        delete p.puzzlemasterDrunk;
+        if (p.role !== 'drunk') p.drunk = false;
+      }
+    });
+
+    if (hasPuzzlemaster) {
+      let pmDrunkKey = this.state.puzzlemasterDrunkRole;
+      let pmTargetPlayer = this.state.players.find(p => p.role === pmDrunkKey);
+      
+      if (!pmTargetPlayer) {
+        const goodPlayersInPlay = this.state.players.filter(p => {
+          return p.roleData && ['townsfolk', 'outsider'].includes(p.roleData.type) && p.role !== 'puzzlemaster';
+        });
+        if (goodPlayersInPlay.length > 0) {
+          pmTargetPlayer = goodPlayersInPlay[Math.floor(Math.random() * goodPlayersInPlay.length)];
+          this.state.puzzlemasterDrunkRole = pmTargetPlayer.role;
+        }
+      }
+      
+      if (pmTargetPlayer) {
+        pmTargetPlayer.drunk = true;
+        pmTargetPlayer.puzzlemasterDrunk = true;
+      }
     }
   }
 
@@ -1134,6 +1475,15 @@ class AppController {
       const playerObj = this.state.players[this.state.distCurrentIndex];
       let char = playerObj.roleData;
       
+      if (!char) {
+        document.getElementById('pass-role-type').innerText = "未指定";
+        document.getElementById('pass-role-type').style.color = "hsl(var(--text-muted))";
+        document.getElementById('pass-role-name').innerText = "未分配角色";
+        document.getElementById('pass-role-desc').innerText = "请在手动指定面板中为此玩家选择角色。";
+        confirmBtn.setAttribute('disabled', 'true');
+        return;
+      }
+      
       // 疯子发牌伪装逻辑：如果真实角色是疯子，则向玩家显示本局实际的恶魔卡牌信息
       if (playerObj.role === 'lunatic') {
         char = this.getActualDemonRoleData();
@@ -1199,6 +1549,12 @@ class AppController {
     const idx = parseInt(document.getElementById('qr-player-select').value);
     const p = this.state.players[idx];
     if (!p) return;
+
+    if (!p.role || !p.roleData) {
+      document.getElementById('dist-qr-image').src = "";
+      document.getElementById('qr-target-text-info').innerText = `正在展示：${idx + 1}号 [${p.name}] (未分配角色，无法生成二维码)`;
+      return;
+    }
 
     document.getElementById('qr-target-text-info').innerText = `正在展示：${idx + 1}号 [${p.name}] 的专属卡片`;
 
@@ -1275,6 +1631,9 @@ class AppController {
   }
 
   completeDistribution() {
+    // 处理手动分配的特殊角色后置逻辑 (如酒鬼、提线木偶、解谜大师等状态及伪装计算)
+    this.postProcessManualDistribution();
+
     // 分配最终确认
     this.state.dayNumber = 1;
     this.state.phase = 'night'; // 标准游戏均以首夜闭眼开始！
@@ -3918,6 +4277,342 @@ class AppController {
       };
     }
 
+    // noble (贵族)
+    else if (wakingKey === 'noble') {
+      const sel1 = this.createSelectorElement("告知玩家1:", false);
+      const sel2 = this.createSelectorElement("告知玩家2:", false);
+      const sel3 = this.createSelectorElement("告知玩家3:", false);
+      interactiveArea.appendChild(sel1.row);
+      interactiveArea.appendChild(sel2.row);
+      interactiveArea.appendChild(sel3.row);
+
+      const hint = document.createElement('div');
+      hint.style.fontSize = '0.75rem';
+      hint.style.color = 'hsl(var(--gold))';
+      hint.style.marginTop = '5px';
+      interactiveArea.appendChild(hint);
+
+      const updateNoble = () => {
+        const p1 = this.state.players[sel1.select.value];
+        const p2 = this.state.players[sel2.select.value];
+        const p3 = this.state.players[sel3.select.value];
+        const list = [p1, p2, p3].filter(Boolean);
+        if (list.length === 3) {
+          const evilCount = list.filter(p => {
+            const char = this.findRoleData(p.role);
+            return char && (char.type === 'minion' || char.type === 'demon');
+          }).length;
+          hint.innerHTML = `🔍 助手提示：选定三人中邪恶阵营人数为 <strong>${evilCount}</strong> 人。` + 
+            (evilCount === 1 ? " (🟢 符合有且仅有1个规则)" : " (❌ 警告：不符合有且仅有1个规则！)");
+          setDraft(`展示三名玩家：${list.map(p => `[${p.name}]`).join('、')}，其中有且只有一名是邪恶的。`);
+        } else {
+          hint.innerHTML = "";
+          setDraft("");
+        }
+      };
+
+      sel1.select.onchange = updateNoble;
+      sel2.select.onchange = updateNoble;
+      sel3.select.onchange = updateNoble;
+    }
+
+    // onmyoji (阴阳师)
+    else if (wakingKey === 'onmyoji') {
+      const good1 = this.createRoleSelectorElement("善良角色1:", "good");
+      const good2 = this.createRoleSelectorElement("善良角色2:", "good");
+      const evil1 = this.createRoleSelectorElement("邪恶角色1:", "evil");
+      const evil2 = this.createRoleSelectorElement("邪恶角色2:", "evil");
+      interactiveArea.appendChild(good1.row);
+      interactiveArea.appendChild(good2.row);
+      interactiveArea.appendChild(evil1.row);
+      interactiveArea.appendChild(evil2.row);
+
+      const hint = document.createElement('div');
+      hint.style.fontSize = '0.75rem';
+      hint.style.color = 'hsl(var(--gold))';
+      hint.style.marginTop = '5px';
+      interactiveArea.appendChild(hint);
+
+      const updateOnmyoji = () => {
+        const g1 = good1.select.value;
+        const g2 = good2.select.value;
+        const e1 = evil1.select.value;
+        const e2 = evil2.select.value;
+        const keys = [g1, g2, e1, e2].filter(Boolean);
+        if (keys.length === 4) {
+          const rolesInPlay = this.state.players.map(p => p.role).filter(Boolean);
+          const inPlayCount = keys.filter(k => rolesInPlay.includes(k)).length;
+          hint.innerHTML = `🔍 助手提示：选择的角色在场数量为 <strong>${inPlayCount}</strong> 个。` + 
+            (inPlayCount === 2 ? " (🟢 符合有且仅有2个在场规则)" : " (❌ 警告：不符合有且仅有2个在场规则！)");
+          
+          const g1CN = this.findRoleData(g1)?.name || g1;
+          const g2CN = this.findRoleData(g2)?.name || g2;
+          const e1CN = this.findRoleData(e1)?.name || e1;
+          const e2CN = this.findRoleData(e2)?.name || e2;
+          setDraft(`展示善良角色【${g1CN}】和【${g2CN}】，邪恶角色【${e1CN}】和【${e2CN}】，告知其中有且仅有两角色在场。`);
+        } else {
+          hint.innerHTML = "";
+          setDraft("");
+        }
+      };
+
+      good1.select.onchange = updateOnmyoji;
+      good2.select.onchange = updateOnmyoji;
+      evil1.select.onchange = updateOnmyoji;
+      evil2.select.onchange = updateOnmyoji;
+    }
+
+    // acrobat (杂技演员)
+    else if (wakingKey === 'acrobat') {
+      const sel = this.createSelectorElement("选择观察目标:", true);
+      interactiveArea.appendChild(sel.row);
+
+      sel.select.onchange = (e) => {
+        this.restorePlayersFromBackup();
+        const val = e.target.value;
+        const target = this.state.players[val];
+        if (target) {
+          const isTargetDrunkOrPoisoned = target.drunk || target.poisoned;
+          if (isTargetDrunkOrPoisoned) {
+            player.dead = true;
+            player.deathType = 'killed';
+            player.deathDay = this.state.dayNumber;
+            player.deathPhase = this.state.phase;
+            player.hasVoteToken = true;
+            this.renderGrimoireCircle();
+            this.saveToLocalStorage();
+            setDraft(`选择目标 [${target.name}] (当前处于醉酒/中毒状态)。【杂技演员】惨死于今晚 💀`);
+          } else {
+            setDraft(`选择目标 [${target.name}] (状态正常)。杂技演员安全存活 ✨`);
+          }
+        } else {
+          setDraft("");
+        }
+      };
+    }
+
+    // taoist (道士)
+    else if (wakingKey === 'taoist') {
+      const sel = this.createSelectorElement("选择驱魔目标:", true);
+      interactiveArea.appendChild(sel.row);
+
+      sel.select.onchange = (e) => {
+        this.restorePlayersFromBackup();
+        const val = e.target.value;
+        const target = this.state.players[val];
+        if (target) {
+          const char = this.findRoleData(target.role);
+          if (char && char.type === 'demon') {
+            player.dead = true;
+            player.deathType = 'killed';
+            player.deathDay = this.state.dayNumber;
+            player.deathPhase = this.state.phase;
+            player.hasVoteToken = true;
+            target.drunk = true; // Demon is drunk until next dawn
+            this.renderGrimoireCircle();
+            this.saveToLocalStorage();
+            setDraft(`道士选中了恶魔 [${target.name}]！【道士】今晚死亡，且恶魔被醉酒直到下个黎明 ☯️`);
+          } else {
+            setDraft(`道士选中了玩家 [${target.name}] (非恶魔)。道士安然无恙 ✨`);
+          }
+        } else {
+          setDraft("");
+        }
+      };
+    }
+
+    // nightwatchman (守夜人)
+    else if (wakingKey === 'nightwatchman') {
+      const sel = this.createSelectorElement("确指目标:", true);
+      interactiveArea.appendChild(sel.row);
+
+      sel.select.onchange = (e) => {
+        const val = e.target.value;
+        const target = this.state.players[val];
+        if (target) {
+          setDraft(`向存活玩家 [${target.name}] 指认你是【守夜人】👁️`);
+        } else {
+          setDraft("");
+        }
+      };
+    }
+
+    // judge (提刑官)
+    else if (wakingKey === 'judge') {
+      const sel = this.createSelectorElement("白天首提目标:", false);
+      interactiveArea.appendChild(sel.row);
+
+      sel.select.onchange = (e) => {
+        const val = e.target.value;
+        const target = this.state.players[val];
+        if (target) {
+          const char = this.findRoleData(target.role);
+          if (char) {
+            if (char.type === 'demon') {
+              setDraft(`告知提刑官被提名玩家 [${target.name}] 的身份是：【洗衣妇】 (恶魔伪装判定为善良) ⚖️`);
+            } else {
+              setDraft(`告知提刑官被提名玩家 [${target.name}] 的真实身份为：【${char.name}】 ⚖️`);
+            }
+          }
+        } else {
+          setDraft("");
+        }
+      };
+    }
+
+    // scribe (秉笔)
+    else if (wakingKey === 'scribe') {
+      const isDayDeath = player.deathPhase === 'day';
+      const label = isDayDeath ? "指认存活善良玩家:" : "指认存活邪恶玩家:";
+      const sel = this.createSelectorElement(label, true);
+      interactiveArea.appendChild(sel.row);
+
+      sel.select.onchange = (e) => {
+        const val = e.target.value;
+        const target = this.state.players[val];
+        if (target) {
+          setDraft(`向已死秉笔展示存活玩家 [${target.name}] 的身份以提供线索 ✍️`);
+        } else {
+          setDraft("");
+        }
+      };
+    }
+
+    // summoner (召唤师)
+    else if (wakingKey === 'summoner') {
+      if (this.state.dayNumber === 1) {
+        const bluff1 = this.createRoleSelectorElement("伪装角色1:", "good");
+        const bluff2 = this.createRoleSelectorElement("伪装角色2:", "good");
+        const bluff3 = this.createRoleSelectorElement("伪装角色3:", "good");
+        interactiveArea.appendChild(bluff1.row);
+        interactiveArea.appendChild(bluff2.row);
+        interactiveArea.appendChild(bluff3.row);
+
+        const updateSummonerBluffs = () => {
+          const b1 = this.findRoleData(bluff1.select.value)?.name || "";
+          const b2 = this.findRoleData(bluff2.select.value)?.name || "";
+          const b3 = this.findRoleData(bluff3.select.value)?.name || "";
+          if (b1 && b2 && b3) {
+            setDraft(`向召唤师展示三个不在场善良角色作为伪装：【${b1}】、【${b2}】、【${b3}】 🔮`);
+          } else {
+            setDraft("");
+          }
+        };
+
+        bluff1.select.onchange = updateSummonerBluffs;
+        bluff2.select.onchange = updateSummonerBluffs;
+        bluff3.select.onchange = updateSummonerBluffs;
+      } else {
+        const label = document.createElement('div');
+        label.style.fontSize = '0.85rem';
+        label.style.fontWeight = 'bold';
+        label.style.marginBottom = '5px';
+        
+        if (this.state.dayNumber === 3) {
+          label.innerHTML = `🔮 <strong>今晚是第三个夜晚：</strong> 请唤醒召唤师创造恶魔！`;
+          label.style.color = 'hsl(var(--gold))';
+          interactiveArea.appendChild(label);
+
+          const targetSel = this.createSTPlayerSelectorElement("目标玩家:", true);
+          const demonSel = this.createRoleSelectorElement("转变成的邪恶恶魔:", "demon");
+          interactiveArea.appendChild(targetSel.row);
+          interactiveArea.appendChild(demonSel.row);
+
+          const updateSummonerDemon = () => {
+            const t = this.state.players[targetSel.select.value];
+            const d = this.findRoleData(demonSel.select.value);
+            if (t && d) {
+              setDraft(`召唤师将创造新的恶魔：令玩家 [${t.name}] 变为邪恶的【${d.name}】 👿`);
+            } else {
+              setDraft("");
+            }
+          };
+
+          targetSel.select.onchange = updateSummonerDemon;
+          demonSel.select.onchange = updateSummonerDemon;
+
+          const originalSave = saveBtn.onclick;
+          saveBtn.onclick = () => {
+            this.restorePlayersFromBackup();
+            const t = this.state.players[targetSel.select.value];
+            const dKey = demonSel.select.value;
+            const dData = this.findRoleData(dKey);
+            if (t && dData) {
+              const oldRoleCN = t.roleData ? t.roleData.name : t.role;
+              t.role = dKey;
+              t.roleData = dData;
+              this.addLog("说书人", `召唤师献祭转变：[${t.name}] 的角色由 [${oldRoleCN}] 变为邪恶恶魔【${dData.name}】`);
+              alert(`【🔮 召唤师成功降临恶魔】\n\n玩家 [${t.name}] 已转变为邪恶的恶魔角色【${dData.name}】！游戏正式迎来恶魔，今晚恶魔将可以睁眼行动。`);
+              this.renderGrimoireCircle();
+              this.saveToLocalStorage();
+            }
+            originalSave();
+          };
+        } else {
+          label.innerHTML = `🔮 今晚是第 ${this.state.dayNumber} 个夜晚（非第三晚）。召唤师闭眼无需行动。`;
+          label.style.color = 'hsl(var(--text-muted))';
+          interactiveArea.appendChild(label);
+        }
+      }
+    }
+
+    // tyrant (暴君)
+    else if (wakingKey === 'tyrant') {
+      const lastNightDeaths = this.state.players.filter(p => p.deathDay === this.state.dayNumber - 1 && p.deathPhase === 'night').length;
+      
+      const sel1 = this.createSelectorElement("击杀目标1:", true);
+      const sel2 = this.createSelectorElement("击杀目标2:", true);
+      interactiveArea.appendChild(sel1.row);
+      interactiveArea.appendChild(sel2.row);
+
+      const labelHint = document.createElement('div');
+      labelHint.style.fontSize = '0.75rem';
+      labelHint.style.color = '#e74c3c';
+      labelHint.style.marginTop = '5px';
+      labelHint.innerHTML = `⚠️ 提示：上个夜晚死亡人数为 <strong>${lastNightDeaths}</strong> 人。今晚您选择的击杀数量<strong>不能</strong>为 ${lastNightDeaths}。`;
+      interactiveArea.appendChild(labelHint);
+
+      const updateTyrantText = () => {
+        const t1 = this.state.players[sel1.select.value];
+        const t2 = this.state.players[sel2.select.value];
+        const selectedCount = [t1, t2].filter(Boolean).length;
+        if (selectedCount === lastNightDeaths) {
+          labelHint.style.color = '#e74c3c';
+          labelHint.innerHTML = `❌ 违规警告：您当前选择了 ${selectedCount} 个目标，与上夜死亡人数相同 (${lastNightDeaths})！`;
+          setDraft("");
+        } else {
+          labelHint.style.color = '#2ecc71';
+          labelHint.innerHTML = `🟢 选择合规：当前选择了 ${selectedCount} 个目标，不等于上夜死亡人数 (${lastNightDeaths})。`;
+          const names = [t1, t2].filter(Boolean).map(t => `[${t.name}]`).join('、');
+          setDraft(names ? `暴君发动夜间袭击，选择杀死：${names} 💀` : "暴君选择今晚空刀 💤");
+        }
+      };
+
+      sel1.select.onchange = updateTyrantText;
+      sel2.select.onchange = updateTyrantText;
+
+      const originalSave = saveBtn.onclick;
+      saveBtn.onclick = () => {
+        this.restorePlayersFromBackup();
+        const t1 = this.state.players[sel1.select.value];
+        const t2 = this.state.players[sel2.select.value];
+        const targets = [t1, t2].filter(Boolean);
+        targets.forEach(target => {
+          target.dead = true;
+          target.deathType = 'killed';
+          target.deathDay = this.state.dayNumber;
+          target.deathPhase = this.state.phase;
+          target.hasVoteToken = true;
+          target.poisoned = false;
+          target.safe = false;
+          if (target.role !== 'drunk') target.drunk = false;
+        });
+        this.renderGrimoireCircle();
+        this.saveToLocalStorage();
+        originalSave();
+      };
+    }
+
     // sailor
     else if (wakingKey === 'sailor') {
       const sel = this.createSelectorElement("拼酒目标:", true); // living only
@@ -4024,7 +4719,7 @@ class AppController {
     }
 
     // imp & other killing demons
-    else if (['imp', 'subassassin', 'po', 'shabaloth', 'zombuul', 'fanggu', 'vigormortis', 'nodashii', 'vortox', 'leech'].includes(wakingKey)) {
+    else if (['imp', 'subassassin', 'po', 'shabaloth', 'zombuul', 'fanggu', 'vigormortis', 'nodashii', 'vortox', 'leech', 'chaos'].includes(wakingKey)) {
       const isAssassin = wakingKey === 'subassassin';
       const labelText = isAssassin ? "刺客必死刺杀目标:" : "袭击/杀害目标:";
       const sel = this.createSelectorElement(labelText, true); // living only
@@ -4074,6 +4769,23 @@ class AppController {
             target.deathDay = this.state.dayNumber;
             target.deathPhase = this.state.phase;
             target.hasVoteToken = true;
+
+            // 混沌恶魔击杀邻座镇民触发全员中毒机制
+            if (wakingKey === 'chaos' && target.roleData && target.roleData.type === 'townsfolk') {
+              const N = this.state.playerCount;
+              const leftIdx = (player.index - 1 + N) % N;
+              const rightIdx = (player.index + 1) % N;
+              if (target.index === leftIdx || target.index === rightIdx) {
+                this.state.players.forEach(p => {
+                  if (p.roleData && (p.roleData.type === 'townsfolk' || p.roleData.type === 'outsider')) {
+                    p.poisoned = true;
+                  }
+                });
+                alert(`【⚠️ 混沌击杀邻座镇民触发全员中毒】\n\n恶魔【混沌】杀死了与其物理相邻的镇民玩家 [${target.name}]！\n\n系统已自动将所有善良玩家的状态设为【中毒】。`);
+                this.addLog("系统", `恶魔【混沌】击杀了邻座镇民 [${target.name}]，触发全体善良玩家中毒 🧪`);
+                draftMsg = `恶魔【混沌】发动袭击，残忍杀害了邻座镇民 [${target.name}]，并令全体善良玩家中毒 💀🧪`;
+              }
+            }
 
             // 自动清洗死者的临时状态
             target.poisoned = false;

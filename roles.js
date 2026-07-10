@@ -863,6 +863,232 @@ const ROLES_DATA = {
         otherNight: 132
       }
     }
+  },
+
+  // === 剧本 6: 名动京城 (Beijing Custom Script) ===
+  mdjc: {
+    name: "名动京城",
+    characters: {
+      noble: {
+        name: "贵族",
+        en: "Noble",
+        type: "townsfolk",
+        ability: "在你的首个夜晚，你会得知三名玩家：其中有且只有一名玩家是邪恶的。",
+        wakeFirst: "展示三名玩家（其中有且只有一名是邪恶玩家）。",
+        firstNight: 95
+      },
+      onmyoji: {
+        name: "阴阳师",
+        en: "Onmyoji",
+        type: "townsfolk",
+        ability: "在你的首个夜晚，你会得知两个善良角色和两个邪恶角色，其中有且只有两个角色在场。",
+        wakeFirst: "展示两个善良角色和两个邪恶角色，并指出其中有且只有两个角色在场。",
+        firstNight: 96
+      },
+      fortuneteller: {
+        name: "占卜师",
+        en: "Fortune Teller",
+        type: "townsfolk",
+        ability: "每个夜晚，你要选择两名玩家：你会得知他们之中是否有恶魔。会有一名善良玩家始终被你的能力当作“恶魔”（干扰项）。",
+        wakeFirst: "选择两名玩家。若有恶魔或【干扰项】，则说书人点头；否则摇头。",
+        wakeOther: "选择两名玩家。若有恶魔或【干扰项】，则说书人点头；否则摇头。",
+        firstNight: 150,
+        otherNight: 210
+      },
+      monk: {
+        name: "僧侣",
+        en: "Monk",
+        type: "townsfolk",
+        ability: "每个夜晚*，你要选择除你以外的一名玩家：当晚恶魔的负面能力对他无效。",
+        wakeOther: "选择一名除水手等之外的玩家：恶魔杀人或毒能力对其无效。",
+        otherNight: 50
+      },
+      chambermaid: {
+        name: "侍女",
+        en: "Chambermaid",
+        type: "townsfolk",
+        ability: "每个夜晚，你要选择除你以外的两名存活的玩家：你会得知他们之中有几人在当晚因自身能力而被唤醒。",
+        wakeFirst: "选择两名存活玩家。指明今晚因自身能力唤醒的人数（0, 1, 2）。",
+        wakeOther: "选择两名存活玩家。指明今晚因自身能力唤醒的人数（0, 1, 2）。",
+        firstNight: 200,
+        otherNight: 290
+      },
+      gambler: {
+        name: "赌徒",
+        en: "Gambler",
+        type: "townsfolk",
+        ability: "每个夜晚*，你要选择一名玩家并猜测他的角色：如果你猜错了，你会死亡。",
+        wakeOther: "选择一名玩家并猜测其身份，猜错则赌徒死亡。",
+        otherNight: 260
+      },
+      acrobat: {
+        name: "杂技演员",
+        en: "Acrobat",
+        type: "townsfolk",
+        ability: "每个夜晚*，你要选择一名玩家：如果当晚他醉酒或中毒，你会死亡。",
+        wakeOther: "选择一名玩家。如果其当晚醉酒或中毒，则杂技演员死亡。",
+        otherNight: 265
+      },
+      taoist: {
+        name: "道士",
+        en: "Taoist",
+        type: "townsfolk",
+        ability: "每个夜晚*，你要选择一名玩家：如果你选中了恶魔，你死亡，然后他醉酒直到下一个黎明。",
+        wakeOther: "选择一名玩家。如果为恶魔，道士死亡且该恶魔被醉酒直到下个黎明。",
+        otherNight: 121
+      },
+      nightwatchman: {
+        name: "守夜人",
+        en: "Nightwatchman",
+        type: "townsfolk",
+        ability: "每局游戏限一次，在夜晚时，你可以选择一名玩家：他会得知你是守夜人。",
+        wakeFirst: "每局一次。选择一名玩家并由说书人告知他是守夜人角色。",
+        wakeOther: "若尚未发动，选择一名玩家并告知他是守夜人角色。",
+        firstNight: 161,
+        otherNight: 311
+      },
+      philosopher: {
+        name: "哲学家",
+        en: "Philosopher",
+        type: "townsfolk",
+        ability: "每局游戏限一次，在夜晚时，你可以选择一个善良角色：你获得该角色的能力。如果这个角色在场，他醉酒。",
+        wakeFirst: "每局一次。选择一个善良角色并剥夺其在场者的能力使其中毒/醉酒。",
+        wakeOther: "每局一次。选择一个善良角色并剥夺其在场者的能力使其中毒/醉酒。",
+        firstNight: 20,
+        otherNight: 10
+      },
+      seamstress: {
+        name: "女裁缝",
+        en: "Seamstress",
+        type: "townsfolk",
+        ability: "每局游戏限一次，在夜晚时，你可以选择（除你以外的）两名玩家：你会得知他们是否为同一阵营。",
+        wakeFirst: "每局一次。选择两名其他玩家，示意其阵营是否一致。",
+        wakeOther: "每局一次。选择两名其他玩家，示意其阵营是否一致。",
+        firstNight: 220,
+        otherNight: 320
+      },
+      judge: {
+        name: "提刑官",
+        en: "Judge",
+        type: "townsfolk",
+        ability: "在你首次提名玩家后，你会在当晚得知他的角色。恶魔会被你的能力当作善良角色。",
+        wakeOther: "若白天首次进行了提名：告知其被提名者的真实角色（如果是恶魔，展示为好人）。",
+        otherNight: 181
+      },
+      scribe: {
+        name: "秉笔",
+        en: "Scribe",
+        type: "townsfolk",
+        ability: "如果你在白天死亡，当晚你会得知一名善良玩家。如果你在夜晚死亡，当晚你会得知一名邪恶玩家。",
+        wakeOther: "若死于白天，指出一个存活善良角色；若死于夜晚，指出一个存活邪恶角色。",
+        otherNight: 182
+      },
+
+      // 外来者
+      barber: {
+        name: "理发师",
+        en: "Barber",
+        type: "outsider",
+        ability: "如果你死亡，在当晚恶魔可以选择两名玩家（不能选择其他恶魔）交换角色。",
+        wakeOther: "理发师死亡后的夜晚：恶魔可以选择两名存活玩家（非恶魔）交换身份。",
+        otherNight: 150
+      },
+      moonchild: {
+        name: "月之子",
+        en: "Moonchild",
+        type: "outsider",
+        ability: "当你得知你死亡时，你要公开选择一名存活的玩家。如果他是善良的，在当晚他会死亡。",
+        abilityType: "passive"
+      },
+      hermit: {
+        name: "隐士",
+        en: "Hermit",
+        type: "outsider",
+        ability: "你拥有所有外来者能力。[-0~1 外来者]",
+        abilityType: "passive"
+      },
+      embalmer: {
+        name: "入殓师",
+        en: "Embalmer",
+        type: "outsider",
+        ability: "如果你提名并处决了恶魔，你会变成邪恶的恶魔。当剩余存活玩家小于等于四人时（旅行者除外），你失去能力。",
+        abilityType: "passive"
+      },
+
+      // 爪牙
+      poisoner: {
+        name: "投毒者",
+        en: "Poisoner",
+        type: "minion",
+        ability: "每个夜晚，你要选择一名玩家：他在当晚和明天白天中毒。",
+        wakeFirst: "选择一名下毒目标使其醉酒/中毒。",
+        wakeOther: "选择一名下毒目标使其醉酒/中毒。",
+        firstNight: 30,
+        otherNight: 20
+      },
+      godfather: {
+        name: "教父",
+        en: "Godfather",
+        type: "minion",
+        ability: "在你的首个夜晚，你会得知有哪些外来者角色在场。如果有外来者在白天死亡，你会在当晚被唤醒且你必须选择一名玩家：他死亡。[-1 或 +1 外来者]",
+        wakeFirst: "指出有哪些外来者在场。",
+        wakeOther: "如果有外来者死于白天，选择一名玩家杀害。",
+        firstNight: 170,
+        otherNight: 110
+      },
+      scarletwoman: {
+        name: "红唇女郎",
+        en: "Scarlet Woman",
+        type: "minion",
+        ability: "如果大于等于五名玩家存活时（旅行者不计算在内）恶魔死亡，你变成那个恶魔。",
+        wakeOther: "若恶魔死且存活人 >= 5：唤醒红唇女郎使其变成新恶魔。",
+        otherNight: 140
+      },
+      summoner: {
+        name: "召唤师",
+        en: "Summoner",
+        type: "minion",
+        ability: "在首个夜晚，你会得知三个伪装。在第三个夜晚，你要选择一名玩家：他变成由你选择的邪恶恶魔。[无恶魔在场]",
+        wakeFirst: "告知三个伪装角色。",
+        wakeOther: "仅在第三晚：选择一名玩家，并展示一个恶魔角色使其变成该邪恶恶魔。",
+        firstNight: 75,
+        otherNight: 85
+      },
+
+      // 恶魔
+      imp: {
+        name: "小恶魔",
+        en: "Imp",
+        type: "demon",
+        ability: "每个夜晚*，你要选择一名玩家：他死亡。如果你以这种方式自杀，一名爪牙会变成小恶魔。",
+        wakeOther: "选择一名玩家杀害。若自杀则指派一名存活爪牙继位为恶魔。",
+        otherNight: 130
+      },
+      chaos: {
+        name: "混沌",
+        en: "Chaos",
+        type: "demon",
+        ability: "每个夜晚*，你要选择一名玩家：他死亡。如果你以这种方式杀死了一名与你邻近的镇民玩家，除旅行者外的所有善良玩家会中毒直到下个黄昏。",
+        wakeOther: "选择一名玩家杀害。若杀死了邻座的镇民，触发全员好人中毒直到下个黄昏。",
+        otherNight: 131
+      },
+      nodashii: {
+        name: "诺·达戴",
+        en: "No Dashii",
+        type: "demon",
+        ability: "每个夜晚*，你要选择一名玩家：他死亡。与你邻近的两名镇民中毒。",
+        wakeOther: "选择一名玩家杀害（相邻存活镇民将处于中毒状态）。",
+        otherNight: 137
+      },
+      tyrant: {
+        name: "暴君",
+        en: "Tyrant",
+        type: "demon",
+        ability: "每个夜晚*，你可以选择至多两名玩家：他们死亡。你选择的玩家数量不能与上个夜晚死亡的玩家数量相同（超过二人时算作二人）。",
+        wakeOther: "选择至多两名玩家杀害（所选数量不能与昨晚死亡人数相同）。",
+        otherNight: 139
+      }
+    }
   }
 };
 
@@ -893,12 +1119,15 @@ const MASTER_NIGHT_ORDER = {
     // 挂诅咒和洗脑
     witch: 60,
     cerenovus: 70,
+    summoner: 75,
     
     // 祖母确认孙子
     grandmother: 80,
     
     // 信息收集
     washerwoman: 90,
+    noble: 93,
+    onmyoji: 94,
     pixie: 95,
     librarian: 100,
     puzzlemaster: 105,
@@ -909,6 +1138,7 @@ const MASTER_NIGHT_ORDER = {
     empath: 140,
     fortuneteller: 150,
     butler: 160,
+    nightwatchman: 161,
     lunatic: 165, // Add Lunatic (疯子) here
     amnesiac: 162,
     godfather: 170,
@@ -939,6 +1169,7 @@ const MASTER_NIGHT_ORDER = {
     // 诅咒与洗脑
     witch: 70,
     cerenovus: 80,
+    summoner: 85,
     
     // 巫婆变身
     pithag: 90,
@@ -947,11 +1178,13 @@ const MASTER_NIGHT_ORDER = {
     subassassin: 110,
     godfather: 115,
     exorcist: 120,
+    taoist: 121,
     lunatic: 125, // Add Lunatic (疯子) here
     
     // 恶魔行动阶段 (Imp, Zombuul, Pukka, Shabaloth, Po, Fang Gu, Vigormortis, No Dashii, Vortox)
     // 它们共享同一个相对时间段
     imp: 130,
+    chaos: 131,
     zombuul: 131,
     pukka: 132,
     leech: 132,
@@ -961,6 +1194,7 @@ const MASTER_NIGHT_ORDER = {
     vigormortis: 136,
     nodashii: 137,
     vortox: 138,
+    tyrant: 139,
     
     // 晋升检查 (红唇女郎)
     scarletwoman: 140,
@@ -974,6 +1208,8 @@ const MASTER_NIGHT_ORDER = {
     
     // 其它获取信息村民
     undertaker: 180,
+    judge: 181,
+    scribe: 182,
     bountyhunter: 185,
     empath: 200,
     fortuneteller: 210,
@@ -982,10 +1218,12 @@ const MASTER_NIGHT_ORDER = {
     towncrier: 240,
     dreamer: 250,
     gambler: 260,
+    acrobat: 265,
     professor: 270,
     mathematician: 280,
     juggler: 300,
     butler: 310,
+    nightwatchman: 311,
     amnesiac: 315,
     seamstress: 320,
     spy: 330
