@@ -868,6 +868,40 @@ const ROLES_DATA = {
   // === 剧本 6: 名动京城 (Beijing Custom Script) ===
   mdjc: {
     name: "名动京城",
+    // 剧本专属首夜行动顺序覆盖
+    firstNight: {
+      "minion-info": 1,
+      "demon-info": 2,
+      poisoner: 30,
+      noble: 93,
+      onmyoji: 94,
+      fortuneteller: 150,
+      chambermaid: 155,
+      nightwatchman: 161,
+      philosopher: 215,
+      seamstress: 220,
+      summoner: 225
+    },
+    // 剧本专属其他夜晚行动顺序覆盖
+    otherNight: {
+      philosopher: 10,
+      poisoner: 20,
+      monk: 50,
+      judge: 60,
+      acrobat: 70,
+      taoist: 80,
+      imp: 130,
+      chaos: 131,
+      nodashii: 137,
+      tyrant: 139,
+      scarletwoman: 140,
+      barber: 150,
+      scribe: 160,
+      fortuneteller: 210,
+      chambermaid: 290,
+      nightwatchman: 311,
+      summoner: 325
+    },
     characters: {
       noble: {
         name: "贵族",
@@ -1230,10 +1264,22 @@ const MASTER_NIGHT_ORDER = {
   }
 };
 
+// 传奇角色数据 (Fabled Characters)
+const FABLED_DATA = {
+  sentinel: {
+    name: "哨兵",
+    en: "Sentinel",
+    type: "fabled",
+    ability: "游戏开始配置身份时，可能会多一个或少一个外来者。"
+  }
+};
+
 // 导出模块 (支持浏览器 global 加载 and node 导入)
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { ROLES_DATA, MASTER_NIGHT_ORDER };
+  module.exports = { ROLES_DATA, MASTER_NIGHT_ORDER, FABLED_DATA };
 } else {
   window.ROLES_DATA = ROLES_DATA;
   window.MASTER_NIGHT_ORDER = MASTER_NIGHT_ORDER;
+  window.FABLED_DATA = FABLED_DATA;
 }
+

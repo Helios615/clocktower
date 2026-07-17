@@ -29,7 +29,9 @@ class AppController {
       currentNightRecord: {},    // 当晚玩家行动与获得信息临时记录
       fortuneTellerRedHerring: "", // 占卜师宿敌 (红鲱鱼) 玩家索引
       nightRecords: {},             // 历夜说书人备忘历史记录
-      fangguJumped: false          // 方古是否已经触发过外来者夺舍夺命变恶魔
+      fangguJumped: false,          // 方古是否已经触发过外来者夺舍夺命变恶魔
+      sentinelEnabled: false,      // 是否启用哨兵
+      sentinelModifier: 'none'     // 哨兵人数修正 ('none', 'minion_plus', 'minion_minus', 'demon_plus', 'demon_minus')
     };
 
     // 2. 状态映射配置 (标准人数身份分配)
@@ -179,6 +181,11 @@ class AppController {
         const parsed = JSON.parse(saved);
         // 覆盖合并现有 state
         this.state = { ...this.state, ...parsed };
+        // 防御性检查：如果恢复的 script key 不存在于角色库，回退到默认剧本
+        if (!ROLES_DATA[this.state.script]) {
+          console.warn(`恢复的剧本 key "${this.state.script}" 不存在，已重置为默认剧本 (tb)`);
+          this.state.script = 'tb';
+        }
         console.log("成功恢复游戏记录, 视图:", this.state.view);
       }
     } catch (e) {
@@ -218,6 +225,44 @@ class AppController {
       this.state.customMix = e.target.checked;
       this.saveToLocalStorage();
     };
+
+    // 监听哨兵开关与人数修正切换
+    const sentinelToggle = document.getElementById('sentinel-toggle');
+    const sentinelModContainer = document.getElementById('sentinel-modifier-container');
+    const sentinelModSelect = document.getElementById('sentinel-modifier-select');
+
+    if (sentinelToggle) {
+      sentinelToggle.checked = this.state.sentinelEnabled || false;
+      if (sentinelModContainer) {
+        sentinelModContainer.style.display = this.state.sentinelEnabled ? 'block' : 'none';
+      }
+    }
+    if (sentinelModSelect) {
+      sentinelModSelect.value = this.state.sentinelModifier || 'none';
+    }
+
+    if (sentinelToggle) {
+      sentinelToggle.onchange = (e) => {
+        this.state.sentinelEnabled = e.target.checked;
+        if (sentinelModContainer) {
+          sentinelModContainer.style.display = e.target.checked ? 'block' : 'none';
+        }
+        if (!e.target.checked) {
+          this.state.sentinelModifier = 'none';
+          if (sentinelModSelect) sentinelModSelect.value = 'none';
+        }
+        this.updateDistributionBadges();
+        this.saveToLocalStorage();
+      };
+    }
+
+    if (sentinelModSelect) {
+      sentinelModSelect.onchange = (e) => {
+        this.state.sentinelModifier = e.target.value;
+        this.updateDistributionBadges();
+        this.saveToLocalStorage();
+      };
+    }
   }
 
   // ==========================================
@@ -248,6 +293,20 @@ class AppController {
   // ==========================================
 
   renderSetupView() {
+    // 恢复哨兵控件的状态显示
+    const sentinelToggle = document.getElementById('sentinel-toggle');
+    const sentinelModContainer = document.getElementById('sentinel-modifier-container');
+    const sentinelModSelect = document.getElementById('sentinel-modifier-select');
+    if (sentinelToggle) {
+      sentinelToggle.checked = this.state.sentinelEnabled || false;
+      if (sentinelModContainer) {
+        sentinelModContainer.style.display = this.state.sentinelEnabled ? 'block' : 'none';
+      }
+    }
+    if (sentinelModSelect) {
+      sentinelModSelect.value = this.state.sentinelModifier || 'none';
+    }
+
     this.updateDistributionBadges();
     this.renderPlayerNamesList();
     this.switchView(this.state.view);
@@ -277,6 +336,25 @@ class AppController {
         rules.outsider = Math.max(0, rules.outsider - 1);
       }
     }
+
+    // 4. 哨兵人数修正 (+1/-1 外来者，对应增减村民)
+    if (this.state.sentinelEnabled) {
+      const mod = this.state.sentinelModifier || 'none';
+      if (mod === 'outsider_plus') {
+        rules.outsider += 1;
+        rules.townsfolk = Math.max(0, rules.townsfolk - 1);
+      } else if (mod === 'outsider_minus') {
+        rules.outsider = Math.max(0, rules.outsider - 1);
+        rules.townsfolk += 1;
+      }
+    }
+
+    // 5. 召唤师特殊规则 [无恶魔在场]: 召唤师在第三夜自行变出恶魔，初始 demon 席位 = 0，空出来的那个席位补给村民
+    if (this.state.pool && this.state.pool.includes('summoner')) {
+      rules.townsfolk += rules.demon; // 将原本的恶魔席位数补给村民（通常是 +1）
+      rules.demon = 0;
+    }
+
     return rules;
   }
 
@@ -762,21 +840,26 @@ class AppController {
   // 匹配名额一键随机勾选
   autoRandomPool() {
     this.state.pool = [];
-    const baseRules = this.distributionRules[this.state.playerCount];
+    // 1. 先获取当前分配规则（获取哨兵人数修正后的恶魔和爪牙数）
+    let rules = this.getCurrentDistributionRules();
 
-    // 1. 先抽取 恶魔 和 爪牙 (Minions & Demons)
+    // 先抽取 爪牙 (Minions)
     const minionList = this.getAvailableRolesList('minion');
     const minionShuffled = [...minionList].sort(() => 0.5 - Math.random());
-    const selectedMinions = minionShuffled.slice(0, baseRules.minion);
+    const selectedMinions = minionShuffled.slice(0, rules.minion);
     selectedMinions.forEach(item => this.state.pool.push(item.key));
 
-    const demonList = this.getAvailableRolesList('demon');
-    const demonShuffled = [...demonList].sort(() => 0.5 - Math.random());
-    const selectedDemons = demonShuffled.slice(0, baseRules.demon);
-    selectedDemons.forEach(item => this.state.pool.push(item.key));
+    // 召唤师在场时无初始恶魔（[无恶魔在场] 规则），跳过抽取恶魔
+    const hasSummoner = this.state.pool.includes('summoner');
+    if (!hasSummoner) {
+      const demonList = this.getAvailableRolesList('demon');
+      const demonShuffled = [...demonList].sort(() => 0.5 - Math.random());
+      const selectedDemons = demonShuffled.slice(0, rules.demon);
+      selectedDemons.forEach(item => this.state.pool.push(item.key));
+    }
 
-    // 2. 依据是否包含“男爵”动态计算当前的分配名额规则
-    const rules = this.getCurrentDistributionRules();
+    // 2. 依据是否包含“男爵/方古/教父”动态重新计算当前的分配名额规则
+    rules = this.getCurrentDistributionRules();
 
     // 3. 抽取外来者 (Outsiders)
     const outsiderList = this.getAvailableRolesList('outsider');
@@ -875,7 +958,8 @@ class AppController {
       alert(`【角色结构不合规】\n\n本局需要至少 ${rules.minion} 个爪牙，但您仅勾选了 ${poolMinion.length} 个爪牙角色！请在爪牙池中多勾选一些。`);
       return;
     }
-    if (poolDemon.length < rules.demon) {
+    const hasSummonerInPool = this.state.pool.includes('summoner');
+    if (!hasSummonerInPool && poolDemon.length < rules.demon) {
       alert(`【角色结构不合规】\n\n本局需要至少 ${rules.demon} 个恶魔，但您仅勾选了 ${poolDemon.length} 个恶魔角色！请在恶魔池中多勾选一些。`);
       return;
     }
@@ -929,12 +1013,14 @@ class AppController {
       }
     });
 
+    // 召唤师在场时无初始恶魔（[无恶魔在场] 规则）
+    const hasSummonerSelected = this.state.pool.includes('summoner');
     // 从每一类中抽取对应名额
     const finalSelection = [
       ...this.getRandomSubarray(poolTownsfolk, rules.townsfolk),
       ...this.getRandomSubarray(poolOutsider, rules.outsider),
       ...this.getRandomSubarray(poolMinion, rules.minion),
-      ...this.getRandomSubarray(poolDemon, rules.demon)
+      ...(hasSummonerSelected ? [] : this.getRandomSubarray(poolDemon, rules.demon))
     ];
 
     // 打乱顺序，准备分发给玩家们
@@ -1694,6 +1780,17 @@ class AppController {
       this.addLog("系统", `🚨 <strong>说书人警示</strong>: 玩家 [${marionettePlayer.name}] (座位 ${marionettePlayer.index + 1}) 的真实角色为【提线木偶】，他以为自己是好人【${fakeName}】。其座位必须与恶魔相邻。`);
     }
 
+    // 召唤师说书人提醒机制：本局无初始恶魔 [无恶魔在场]
+    const summonerPlayer = this.state.players.find(p => p.role === 'summoner');
+    if (summonerPlayer) {
+      const otherWarningsCount = [lunaticPlayer, drunkPlayer, pmDrunkPlayer, marionettePlayer].filter(Boolean).length;
+      setTimeout(() => {
+        alert(`【🚨 说书人重要警示 - 召唤师在场】\n\n本局游戏中有玩家分配到了【召唤师】(Summoner) 角色！\n\n👤 玩家名称: ${summonerPlayer.name} (座位号 ${summonerPlayer.index + 1})\n\n【⚠️ 重要：本局初始没有恶魔！】\n\n说书人重要提示：\n1. 游戏开始时【没有任何恶魔角色在场】，善良阵营不能通过处决恶魔获胜；\n2. 召唤师会在第一夜得知三个可供选择的恶魔身份；\n3. 在第三夜，召唤师将选择一名玩家，并从之前的三个恶魔身份中选一个：该玩家立刻变成对应的邪恶恶魔；\n4. 如果召唤师在第三夜到来之前死亡，善良阵营自动获胜（因为永远不会有恶魔产生）。`);
+      }, otherWarningsCount >= 3 ? 2100 : otherWarningsCount >= 2 ? 1800 : otherWarningsCount >= 1 ? 1200 : 300);
+      
+      this.addLog("系统", `🚨 <strong>说书人警示</strong>: 本局有【召唤师】(玩家 ${summonerPlayer.name})，初始<strong>没有恶魔在场</strong>。召唤师将在第三夜召唤恶魔。`);
+    }
+
     // 切到魔典界面
     this.switchView('grim-view');
   }
@@ -1710,10 +1807,25 @@ class AppController {
     oldNodes.forEach(node => node.remove());
 
     // 渲染中心时钟状态
-    const scriptName = this.state.customMix ? "混编剧本" : ROLES_DATA[this.state.script].name;
+    const scriptName = this.state.customMix ? "混编剧本" : (ROLES_DATA[this.state.script] ? ROLES_DATA[this.state.script].name : "未知剧本");
     document.getElementById('grim-center-script-name').innerText = scriptName;
     document.getElementById('grim-center-day-phase').innerText = `第 ${this.state.dayNumber} ${this.state.phase === 'night' ? '夜晚' : '白天'}`;
     document.getElementById('grim-day-number-text').innerText = `第 ${this.state.dayNumber} 天`;
+
+    // 渲染传奇角色（哨兵）状态 Badge
+    const fabledBadge = document.getElementById('grim-center-fabled-badge');
+    if (fabledBadge) {
+      if (this.state.sentinelEnabled) {
+        fabledBadge.style.display = 'inline-block';
+        let desc = "哨兵";
+        const mod = this.state.sentinelModifier;
+        if (mod === 'outsider_plus') desc += " (外来者+1)";
+        else if (mod === 'outsider_minus') desc += " (外来者-1)";
+        fabledBadge.innerText = desc;
+      } else {
+        fabledBadge.style.display = 'none';
+      }
+    }
     
     const phaseBtn = document.getElementById('btn-toggle-phase');
     phaseBtn.innerText = this.state.phase === 'night' ? '切换为白天 ☀️' : '进入夜晚 🌙';
@@ -2709,8 +2821,11 @@ class AppController {
       playerObject: p // 保存玩家对象实例以访问伪装属性
     }));
 
-    // 获取全局排序表
-    const orderMap = isFirst ? MASTER_NIGHT_ORDER.firstNight : MASTER_NIGHT_ORDER.otherNight;
+    // 获取排序表 (优先使用剧本自定义夜顺，混编模式下强制使用全局相对夜顺)
+    const scriptConfig = (!this.state.customMix && ROLES_DATA[this.state.script]) ? ROLES_DATA[this.state.script] : null;
+    const orderMap = isFirst 
+      ? ((scriptConfig && scriptConfig.firstNight) ? scriptConfig.firstNight : MASTER_NIGHT_ORDER.firstNight) 
+      : ((scriptConfig && scriptConfig.otherNight) ? scriptConfig.otherNight : MASTER_NIGHT_ORDER.otherNight);
 
     // 2. 根据官方主相对表动态排序在场苏醒角色
     const sortedWakeList = [];
@@ -2763,6 +2878,28 @@ class AppController {
             // 存活状态下或者死后触发条件
             if (!p.isDead) {
               shouldWake = true;
+
+              // 特殊：召唤师只在第三夜才真正行动，其他夜晚（2、4+）不唤醒
+              if (roleKeyForWaking === 'summoner' && this.state.dayNumber !== 3) {
+                shouldWake = false;
+              }
+
+              // 特殊：提刑官/守夜人/女裁缝 为一次性技能，已使用后不再唤醒
+              if (['judge', 'nightwatchman', 'seamstress'].includes(roleKeyForWaking) && p.playerObject.abilityUsed) {
+                shouldWake = false;
+              }
+
+              // 特殊：哲学家使用技能后以选择的角色身份醒来
+              if (p.roleKey === 'philosopher' && p.playerObject.philoRole && p.playerObject.abilityUsed) {
+                const philoTargetData = this.findRoleData(p.playerObject.philoRole);
+                if (philoTargetData && philoTargetData.otherNight !== undefined) {
+                  roleKeyForWaking = p.playerObject.philoRole;
+                  roleDataForWaking = philoTargetData;
+                } else {
+                  shouldWake = false; // 选择的角色无夜晚行动
+                }
+              }
+
             } else {
               // 特殊：死人可能依然需要睁眼结算一次的角色
               if (['barber', 'sweetheart', 'ravenkeeper', 'sage', 'farmer'].includes(roleKeyForWaking)) {
@@ -2846,6 +2983,16 @@ class AppController {
           p.leechHost = backup.leechHost;
         } else {
           delete p.leechHost;
+        }
+        if (backup.philosopherDrunk !== undefined) {
+          p.philosopherDrunk = backup.philosopherDrunk;
+        } else {
+          delete p.philosopherDrunk;
+        }
+        if (backup.philoRole !== undefined) {
+          p.philoRole = backup.philoRole;
+        } else {
+          delete p.philoRole;
         }
       }
     });
@@ -4421,20 +4568,100 @@ class AppController {
       };
     }
 
+    // philosopher (哲学家)
+    else if (wakingKey === 'philosopher') {
+      if (player.abilityUsed) {
+        const note = document.createElement('div');
+        note.style.color = 'hsl(var(--text-muted))';
+        note.style.fontSize = '0.85rem';
+        note.innerText = '哲学家已选择角色，今夜以选择的角色身份行动。';
+        interactiveArea.appendChild(note);
+      } else {
+        const roleSel = this.createRoleSelectorElement("选择技能目标角色:", "good");
+        interactiveArea.appendChild(roleSel.row);
+
+        const hint = document.createElement('div');
+        hint.style.fontSize = '0.78rem';
+        hint.style.color = '#5dade2';
+        hint.style.marginTop = '6px';
+        hint.innerText = '若该角色现在在场，那名玩家将被标记为【醉酒】。';
+        interactiveArea.appendChild(hint);
+
+        roleSel.select.onchange = () => {
+          const chosenKey = roleSel.select.value;
+          const chosenData = this.findRoleData(chosenKey);
+          if (!chosenKey || !chosenData) { setDraft(""); return; }
+          const inPlayPlayer = this.state.players.find(p => p.role === chosenKey && p !== player);
+          if (inPlayPlayer) {
+            setDraft(`哲学家选择【${chosenData.name}】：玩家 [${inPlayPlayer.name}] 将被标记为【醉酒】 🎭`);
+          } else {
+            setDraft(`哲学家选择【${chosenData.name}】（未在场） 🎭`);
+          }
+        };
+
+        const originalSave = saveBtn.onclick;
+        saveBtn.onclick = () => {
+          this.restorePlayersFromBackup();
+          const chosenKey = roleSel.select.value;
+          const chosenData = this.findRoleData(chosenKey);
+          if (!chosenKey || !chosenData) {
+            alert("请先选择哲学家欲获得的角色能力！");
+            return;
+          }
+          player.philoRole = chosenKey;
+          player.abilityUsed = true;
+          this.state.players.forEach(p => {
+            if (p.philosopherDrunk) {
+              p.philosopherDrunk = false;
+              if (p.role !== 'drunk') p.drunk = false;
+            }
+          });
+          const inPlayPlayer = this.state.players.find(p => p.role === chosenKey && p !== player);
+          if (inPlayPlayer) {
+            inPlayPlayer.drunk = true;
+            inPlayPlayer.philosopherDrunk = true;
+          }
+          this.addLog("说书人", `哲学家 [${player.name}] 选择获得【${chosenData.name}】的能力${inPlayPlayer ? `，玩家 [${inPlayPlayer.name}] 开始【醉酒】` : ''}`);
+          setDraft(`哲学家选择【${chosenData.name}】${inPlayPlayer ? `，[${inPlayPlayer.name}] 开始醉酒` : ''} 🎭`);
+          this.renderGrimoireCircle();
+          this.saveToLocalStorage();
+          originalSave();
+        };
+      }
+    }
+
     // nightwatchman (守夜人)
     else if (wakingKey === 'nightwatchman') {
-      const sel = this.createSelectorElement("确指目标:", true);
-      interactiveArea.appendChild(sel.row);
+      if (player.abilityUsed) {
+        // 已使用过，不应出现在夜顺（shouldWake 居然没拦住的备乙情况）
+        const note = document.createElement('div');
+        note.style.color = 'hsl(var(--text-muted))';
+        note.style.fontSize = '0.85rem';
+        note.innerText = '守夜人已经使用过技能，今夜无需行动。';
+        interactiveArea.appendChild(note);
+      } else {
+        const sel = this.createSelectorElement("确指目标:", true);
+        interactiveArea.appendChild(sel.row);
 
-      sel.select.onchange = (e) => {
-        const val = e.target.value;
-        const target = this.state.players[val];
-        if (target) {
-          setDraft(`向存活玩家 [${target.name}] 指认你是【守夜人】👁️`);
-        } else {
-          setDraft("");
-        }
-      };
+        sel.select.onchange = (e) => {
+          const val = e.target.value;
+          const target = this.state.players[val];
+          if (target) {
+            setDraft(`向存活玩家 [${target.name}] 指认你是【守夜人】👁️`);
+          } else {
+            setDraft("");
+          }
+        };
+
+        const originalSave = saveBtn.onclick;
+        saveBtn.onclick = () => {
+          this.restorePlayersFromBackup();
+          // 标记守夜人技能已使用
+          player.abilityUsed = true;
+          this.saveToLocalStorage();
+          originalSave();
+        };
+      }
     }
 
     // judge (提刑官)
@@ -4537,15 +4764,22 @@ class AppController {
             const t = this.state.players[targetSel.select.value];
             const dKey = demonSel.select.value;
             const dData = this.findRoleData(dKey);
-            if (t && dData) {
-              const oldRoleCN = t.roleData ? t.roleData.name : t.role;
-              t.role = dKey;
-              t.roleData = dData;
-              this.addLog("说书人", `召唤师献祭转变：[${t.name}] 的角色由 [${oldRoleCN}] 变为邪恶恶魔【${dData.name}】`);
-              alert(`【🔮 召唤师成功降临恶魔】\n\n玩家 [${t.name}] 已转变为邪恶的恶魔角色【${dData.name}】！游戏正式迎来恶魔，今晚恶魔将可以睁眼行动。`);
-              this.renderGrimoireCircle();
-              this.saveToLocalStorage();
+            if (!t || !dData) {
+              alert("请先选择目标玩家和恶魔角色，再保存！");
+              return;
             }
+            const oldRoleCN = t.roleData ? t.roleData.name : t.role;
+            t.role = dKey;
+            t.roleData = dData;
+            // 标记召唤师已完成召唤，之后不再出现在夜顺中
+            const summonerP = this.state.players.find(p => p.role === 'summoner');
+            if (summonerP) summonerP.abilityUsed = true;
+            this.addLog("说书人", `召唤师献祭转变：[${t.name}] 的角色由 [${oldRoleCN}] 变为邪恶恶魔【${dData.name}】`);
+            alert(`【🔮 召唤师成功降临恶魔】\n\n玩家 [${t.name}] 已转变为邪恶的恶魔角色【${dData.name}】！游戏正式迎来恶魔，今晚恶魔将可以睡眼行动。`);
+            // 预填备注，确保 originalSave 不会因空文字而拒绝保存
+            setDraft(`召唤师完成召唤：玩家 [${t.name}] 变为邪恶恶魔【${dData.name}】 👿`);
+            this.renderGrimoireCircle();
+            this.saveToLocalStorage();
             originalSave();
           };
         } else {
